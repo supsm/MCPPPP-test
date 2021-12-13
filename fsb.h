@@ -514,7 +514,7 @@ private:
 		{
 			std::filesystem::create_directories(path + u8"/assets/fabricskyboxes/sky");
 		}
-		std::ofstream fout(path + u8"/assets/fabricskyboxes/sky/" + name + u8".json");
+		std::ofstream fout(std::filesystem::path(path + u8"/assets/fabricskyboxes/sky/" + name + u8".json"));
 		fout << j.dump(1, '\t') << std::endl;
 		fout.close();
 	}

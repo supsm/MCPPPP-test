@@ -66,7 +66,7 @@ private:
 			if (!std::filesystem::exists(path + u8"/assets/minecraft/varied/textures/entity/" + folderpath + name + u8".json"))
 			{
 				std::filesystem::create_directories(path + u8"/assets/minecraft/varied/textures/entity/" + folderpath);
-				std::ofstream fout(path + u8"/assets/minecraft/varied/textures/entity/" + folderpath + name + u8".json");
+				std::ofstream fout(std::filesystem::path(path + u8"/assets/minecraft/varied/textures/entity/" + folderpath + name + u8".json"));
 				fout << j.dump(1, '\t') << std::endl;
 				fout.close();
 			}
@@ -478,7 +478,7 @@ private:
 		}
 		j = { {"version", 1}, {"root", {{"type", std::string{VMT} + ":range"}, {"when", {{"type", std::string{VMT} + ":random"}, {"min", 0}, {"max", v.size()}}}, {"options", tempv}}} };
 		std::filesystem::create_directories(path + u8"/assets/minecraft/varied/textures/entity/" + folderpath);
-		std::ofstream fout(path + u8"/assets/minecraft/varied/textures/entity/" + folderpath + name + u8".json");
+		std::ofstream fout(std::filesystem::path(path + u8"/assets/minecraft/varied/textures/entity/" + folderpath + name + u8".json"));
 		fout << j.dump(1, '\t') << std::endl;
 	}
 
@@ -555,7 +555,7 @@ public:
 
 			if (!std::filesystem::exists(path + u8"/assets/minecraft/varied/textures/entity/" + name + u8".json"))
 			{
-				std::ofstream fout(path + u8"/assets/minecraft/varied/textures/entity/" + name + u8".json");
+				std::ofstream fout(std::filesystem::path(path + u8"/assets/minecraft/varied/textures/entity/" + name + u8".json"));
 				fout << j.dump(1, '\t') << std::endl;
 				fout.close();
 			}

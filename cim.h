@@ -105,7 +105,7 @@ private:
 			std::filesystem::create_directories(path + u8"/assets/mcpppp/models/item/" + folderpath);
 			std::u8string filename = png.path().filename().u8string();
 			findreplace(filename, u8" ", u8"_");
-			std::ofstream fout(path + u8"/assets/mcpppp/models/item/" + folderpath + filename);
+			std::ofstream fout(std::filesystem::path(path + u8"/assets/mcpppp/models/item/" + folderpath + filename));
 			fout << j.dump(1, '\t') << std::endl;
 			fout.close();
 		}
@@ -524,7 +524,7 @@ private:
 		{
 			std::filesystem::create_directories(path + u8"/assets/minecraft/overrides/item/");
 			tempj = j;
-			std::ifstream fin2(path + u8"/assets/minecraft/overrides/item/" + mbtoc8(c) + u8".json");
+			std::ifstream fin2(std::filesystem::path(path + u8"/assets/minecraft/overrides/item/" + mbtoc8(c) + u8".json"));
 			if (fin2.good())
 			{
 				fin2 >> tempj;
@@ -536,7 +536,7 @@ private:
 				tempj["overrides"] = tempv;
 			}
 			fin2.close();
-			std::ofstream fout(path + u8"/assets/minecraft/overrides/item/" + mbtoc8(c) + u8".json");
+			std::ofstream fout(std::filesystem::path(path + u8"/assets/minecraft/overrides/item/" + mbtoc8(c) + u8".json"));
 			fout << tempj.dump(1, '\t') << std::endl;
 			fout.close();
 		}
