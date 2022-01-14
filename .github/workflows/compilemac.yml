@@ -25,6 +25,8 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 16
+    - name: tar
+      run: tar --version
     - name: configure cmake
       run: cmake -B build -DMCPPPP_CLI=TRUE -DMCPPPP_GUI=TRUE -DMCPPPP_JNI=TRUE
     - name: build cmake
