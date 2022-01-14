@@ -21,8 +21,8 @@ jobs:
       run: cmake -B build -DMCPPPP_CLI=TRUE -DMCPPPP_GUI=TRUE -DMCPPPP_JNI=TRUE
     - name: build cmake
       run: cmake --build build --config Release
-    - name: ls
-      run: ls
+    - name: ls -R .
+      run: ls 
     - name: copy files
       run: rm bin/*linux* && cp build/bin/* bin/
     - name: rename files
