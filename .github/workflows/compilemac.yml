@@ -18,15 +18,25 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-10.14
     steps:
     - uses: actions/checkout@v2
-    - name: cli
-      run: clang++ Source.cpp -std=c++20 -Ofast -o bin/MCPPPP-mac-cli && chmod +x bin/MCPPPP-mac-cli && tar -cvzf bin/MCPPPP-mac-cli.tar.gz bin/MCPPPP-mac-cli
-    - name: gui
-      run: clang++ -I./ -DGUI -D_LARGEFILE_SOURCE -D_THREAD_SAFE -D_REENTRANT Source.cpp lib/libfltk-mac.a -lpthread -framework Cocoa -Ofast -std=c++20 -o bin/MCPPPP-mac && chmod +x bin/MCPPPP-mac && tar -cvzf bin/MCPPPP-mac.tar.gz bin/MCPPPP-mac
+    - name: setup jdk
+      uses: actions/setup-java@v1
+      with:
+        java-version: 16
+    - name: configure cmake
+      run: cmake -B build -DMCPPPP_CLI=TRUE -DMCPPPP_GUI=TRUE -DMCPPPP_JNI=TRUE
+    - name: build cmake
+      run: cmake --build build --config Release
+    - name: copy files
+      run: rm bin/*mac* && cp build/bin/* bin/
+    - name: rename files
+      run: mv bin/MCPPPP-gui bin/MCPPPP-mac && mv bin/MCPPPP-cli bin/MCPPPP-mac-cli
+    - name: compress files
+      run: cd bin && tar -czvf MCPPPP-mac.tar.gz MCPPPP-mac && tar -czvf MCPPPP-mac-cli.tar.gz MCPPPP-mac-cli
     - uses: EndBug/add-and-commit@v7
       with:
-        add: '["bin/MCPPPP-mac-cli.tar.gz", "bin/MCPPPP-mac.tar.gz"]'
-        message: 'add mac binary'
+        add: '["bin/MCPPPP-mac-cli.tar.gz", "bin/MCPPPP-mac.tar.gz", "bin/libmcpppp.dylib"]'
+        message: 'add mac binaries'
         push: true
