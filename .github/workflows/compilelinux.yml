@@ -22,7 +22,7 @@ jobs:
     - name: build cmake
       run: cmake --build build --config Release
     - name: ls -R .
-      run: ls 
+      run: ls -R .
     - name: copy files
       run: rm bin/*linux* && cp build/bin/* bin/
     - name: rename files
