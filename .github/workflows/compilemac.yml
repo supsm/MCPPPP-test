@@ -21,6 +21,7 @@ jobs:
     runs-on: macos-10.14
     steps:
     - uses: actions/checkout@v2
+<<<<<<< HEAD
     - name: setup jdk
       uses: actions/setup-java@v1
       with:
@@ -39,4 +40,15 @@ jobs:
       with:
         add: '["bin/MCPPPP-mac-cli.tar.gz", "bin/MCPPPP-mac.tar.gz", "bin/libmcpppp.dylib"]'
         message: 'add mac binaries'
+=======
+    - run: tar --version
+    - name: cli
+      run: clang++ Source.cpp -std=c++20 -Ofast -o bin/MCPPPP-mac-cli && chmod +x bin/MCPPPP-mac-cli && tar -cvzf bin/MCPPPP-mac-cli.tar.gz bin/MCPPPP-mac-cli
+    - name: gui
+      run: clang++ -I./ -DGUI -D_LARGEFILE_SOURCE -D_THREAD_SAFE -D_REENTRANT Source.cpp lib/libfltk-mac.a -lpthread -framework Cocoa -Ofast -std=c++20 -o bin/MCPPPP-mac && chmod +x bin/MCPPPP-mac && tar -cvzf bin/MCPPPP-mac.tar.gz bin/MCPPPP-mac
+    - uses: EndBug/add-and-commit@v7
+      with:
+        add: '["bin/MCPPPP-mac-cli.tar.gz", "bin/MCPPPP-mac.tar.gz"]'
+        message: 'add mac binary'
+>>>>>>> 750334811754b0bf068da2dafed0674f3a6e743c
         push: true
