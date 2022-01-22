@@ -1,4 +1,5 @@
 # MCPatcherPatcher++
+[![CodeFactor](https://www.codefactor.io/repository/github/supsm/mcpppp/badge)](https://www.codefactor.io/repository/github/supsm/mcpppp) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/78de1baf045f4931ab13ccd7664c8d74)](https://www.codacy.com/gh/supsm/MCPPPP/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=supsm/MCPPPP&amp;utm_campaign=Badge_Grade) [![Coverity](https://img.shields.io/coverity/scan/mcpppp.svg)](https://scan.coverity.com/projects/mcpppp)  
 A resource pack converter from Optifine format to newer and alternative formats. This project uses C++ and FLTK as the language and base framework. This might seem odd in the Minecraft community, but allows using 25MB of RAM, where other tools use excessive amounts of resources for no reason (LambdAurora's now discontinued MCPP used 50 MB idle). Note that RAM usage varies depending on what is being converted, FSB and zipped resource packs usually will use more. As a native application, it should also perform conversions faster.  
 
 ### Links  
@@ -36,11 +37,13 @@ More detailed instructions below
 
 
 #### CLI
-In the CLI version of MCPPPP, you will need to add paths and settings yourself. Please read [CONFIG.md](CONFIG.md)  
-Alternatively, command-line arguments may be passed for temorary settings. Simply add a json as the command line argument(s). 
+Run `MCPPPP-cli --help`  
+Running without any arguments will allow use of the [config file](CONFIG.md).  
+Fun Fact: On windows, you can "Open With" a zipped resourcepack with MCPPPP, and it will convert (but unfortunately settings will not be settable). Maybe it works on other platforms too, haven't tried  
 
 #### GUI
 In the GUI version of MCPPPP, you can edit `mcpppp.properties` inside the gui. If you want, you can also add your own configuration options in the file. Your options will not be deleted; instead, there will be a GUI section at the bottom of the file. If you add anything here, it may be deleted.  
+This version can also accept command line arguments, but doing so will remove the gui entirely and function like the CLI version.  
 
 ## Build
 Prerequisites: Cmake, compiler with c++17  

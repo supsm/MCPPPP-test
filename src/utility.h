@@ -4,7 +4,7 @@
 
 #pragma once
 
-constexpr auto VERSION = "0.5.8"; // MCPPPP version
+constexpr auto VERSION = "0.6.0"; // MCPPPP version
 constexpr int PACK_VER = 8; // pack.mcmeta pack format
 
 #ifdef _WIN32
@@ -34,6 +34,7 @@ namespace mcpppp
 	inline std::unique_ptr<UI> ui;
 	inline std::stringstream sstream;
 #endif
+	inline int argc = -1;
 	inline bool autodeletetemp = false, pauseonexit = true, dolog = true, dotimestamp = false, autoreconvert = false, fsbtransparent = true;
 	inline int outputlevel = 3, loglevel = 1;
 	inline std::ofstream logfile("mcpppp-log.txt");
@@ -41,6 +42,9 @@ namespace mcpppp
 
 	inline std::set<std::string> paths = {};
 	inline nlohmann::ordered_json config;
+	inline std::vector<std::pair<bool, std::filesystem::directory_entry>> entries = {};
+
+	inline nlohmann::json hashes;
 
 	enum class type { boolean, integer, string };
 
@@ -73,11 +77,9 @@ namespace mcpppp
 
 	inline std::atomic_bool waitdontoutput = false; // don't output probably since output is being redrawn
 
-	[[noreturn]] void exit() noexcept;
+	[[noreturn]] void exit();
 
 	std::string lowercase(std::string str);
-
-	auto localtime_rs(tm* tm, const time_t* time);
 
 	std::string timestamp();
 
@@ -119,32 +121,39 @@ namespace mcpppp
 			if (cout)
 			{
 #ifdef GUI
-				if (first)
+				// if there are no command line arguments, print to gui
+				// otherwise, print to command line like cli
+				if (argc < 2)
 				{
-					sstream << (dotimestamp ? timestamp() : "");
+					if (first)
+					{
+						sstream << (dotimestamp ? timestamp() : "");
+					}
+					sstream << value;
 				}
-				sstream << value;
-#else
-				if (first)
+				else
+#endif
 				{
+					if (first)
+					{
+						if (err)
+						{
+							std::cerr << (dotimestamp ? timestamp() : "");
+						}
+						else
+						{
+							std::cout << (dotimestamp ? timestamp() : "");
+						}
+					}
 					if (err)
 					{
-						std::cerr << (dotimestamp ? timestamp() : "");
+						std::cerr << value;
 					}
 					else
 					{
-						std::cout << (dotimestamp ? timestamp() : "");
+						std::cout << value;
 					}
 				}
-				if (err)
-				{
-					std::cerr << value;
-				}
-				else
-				{
-					std::cout << value;
-				}
-#endif
 			}
 			if (file && logfile.good())
 			{
@@ -169,8 +178,6 @@ namespace mcpppp
 
 	void checkpackver(const std::filesystem::path& path);
 
-	bool findzipitem(const std::string& ziparchive, const std::string& itemtofind);
-
 	bool findfolder(const std::string& path, const std::string& tofind, const bool& zip);
 
 	void unzip(const std::filesystem::path& path, Zippy::ZipArchive& zipa);
@@ -179,7 +186,13 @@ namespace mcpppp
 
 	bool convert(const std::filesystem::path& path, const bool& dofsb = true, const bool& dovmt = true, const bool& docim = true);
 
+	void gethashes();
+
+	void savehashes();
+
 	void setting(const std::string& option, const nlohmann::json& j);
 
 	void readconfig();
+
+	void parseargs(int argc, const char* argv[]);
 }

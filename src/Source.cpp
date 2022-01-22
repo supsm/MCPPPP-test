@@ -34,26 +34,33 @@ using mcpppp::out;
 int main(int argc, const char* argv[])
 try
 {
+	mcpppp::argc = argc;
 	// we don't need this if running cli version, or if unaware_gdiscaled is not available
 	// other dpi awareness settings make the window too small, it's probably better if blurry
 #if defined _WIN32 && defined GUI && defined DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED
 	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED); // fix blurriness
 #endif
-	std::string str;
 	std::error_code ec;
-#ifdef GUI
-	mcpppp::ui = std::make_unique<UI>();
-	Fl::get_system_colors();
-	Fl::lock();
-	fl_message_icon()->labeltype(FL_NO_LABEL);
-	fl_message_icon()->box(FL_NO_BOX);
-	mcpppp::ui->show();
-	Fl::wait();
-#endif
+	mcpppp::gethashes();
 	if (argc < 2) // skip file settings if there are command line settings
 	{
+#ifdef GUI
+		// also skip creating ui window
+
+#ifdef _WIN32
+		// hide console window on windows
+		ShowWindow(GetConsoleWindow(), SW_HIDE);
+#endif
+		mcpppp::ui = std::make_unique<UI>();
+		Fl::get_system_colors();
+		Fl::lock();
+		fl_message_icon()->labeltype(FL_NO_LABEL);
+		fl_message_icon()->box(FL_NO_BOX);
+		mcpppp::ui->show();
+		Fl::wait();
+#endif
 		std::ifstream configfile("mcpppp-config.json");
-		if (configfile.fail() && argc < 2)
+		if (configfile.fail())
 		{
 			std::ofstream createconfig("mcpppp-config.json");
 			createconfig << "// Please check out the Documentation for the config file before editing it yourself: https://github.com/supsm/MCPPPP/blob/master/CONFIG.md"
@@ -70,9 +77,10 @@ try
 		{
 			try
 			{
-				str.resize(std::filesystem::file_size("mcpppp-config.json"));
-				configfile.read(&str.at(0), static_cast<std::streamsize>(std::filesystem::file_size("mcpppp-config.json")));
-				mcpppp::config = nlohmann::ordered_json::parse(str, nullptr, true, true);
+				const std::uintmax_t filesize = std::filesystem::file_size("mcpppp-config.json");
+				std::vector<char> contents(filesize);
+				configfile.read(contents.data(), static_cast<std::streamsize>(filesize));
+				mcpppp::config = nlohmann::ordered_json::parse(contents, nullptr, true, true);
 			}
 			catch (const nlohmann::json::exception& e)
 			{
@@ -81,35 +89,21 @@ try
 			}
 			mcpppp::readconfig();
 		}
+		configfile.close();
 	}
-#ifndef GUI // gui doenst need command line options
 	else
 	{
-		str.clear();
-		str += argv[1];
-		for (int i = 2; i < argc; i++)
-		{
-			str += ' ';
-			str += argv[i];
-		}
-		try
-		{
-			mcpppp::config = nlohmann::ordered_json::parse(str, nullptr, true, true);
-		}
-		catch (nlohmann::json::exception& e)
-		{
-			out(5) << e.what() << std::endl;
-			mcpppp::exit();
-		}
-		mcpppp::readconfig();
+		mcpppp::parseargs(argc, argv);
 	}
-#endif
 
 #ifdef GUI
-	mcpppp::addpaths();
-	mcpppp::updatepaths();
-	mcpppp::dotimestamp = true;
-	mcpppp::updatesettings();
+	if (argc < 2)
+	{
+		mcpppp::addpaths();
+		mcpppp::updatepaths();
+		mcpppp::dotimestamp = true;
+		mcpppp::updatesettings();
+	}
 #endif
 
 	out(6) << "MCPPPP " << VERSION
@@ -181,27 +175,39 @@ try
 	{
 		if (!std::filesystem::is_directory(std::filesystem::u8path(path), ec))
 		{
-			out(5) << "Invalid path: \'" << path << "\'\n" << ec.message() << std::endl;
+			out(5) << "Invalid path: \'" << path << "\'" << std::endl << ec.message() << std::endl;
 			continue;
 		}
 		out(2) << "Path: " << path << std::endl;
 		for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::u8path(path)))
 		{
-#ifdef GUI
 			if (entry.is_directory() || entry.path().extension() == ".zip")
 			{
 				mcpppp::entries.push_back(std::make_pair(true, entry));
+#ifdef GUI
 				mcpppp::addpack(entry.path().filename().u8string(), true);
-			}
-#else
-			mcpppp::convert(entry);
 #endif
+			}
 		}
 	}
 #ifdef GUI
-	mcpppp::ui->scroll->redraw();
-	Fl::run();
+	if (argc < 2)
+	{
+		mcpppp::ui->scroll->redraw();
+		Fl::run();
+	}
+	else
+	{
+		for (const auto& entry : mcpppp::entries)
+		{
+			mcpppp::convert(entry.second);
+		}
+	}
 #else
+	for (const auto& entry : mcpppp::entries)
+	{
+		mcpppp::convert(entry.second);
+	}
 	out(3) << "Conversion Finished" << std::endl;
 	mcpppp::exit();
 #endif
