@@ -4,15 +4,14 @@
 
 #pragma once
 
-constexpr auto VERSION = "0.6.0"; // MCPPPP version
-constexpr int PACK_VER = 8; // pack.mcmeta pack format
-
 #ifdef _WIN32
 #define NOMINMAX
 #endif
 
 #include <atomic>
 #include <fstream>
+#include <iomanip>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <variant>
@@ -28,6 +27,10 @@ constexpr int PACK_VER = 8; // pack.mcmeta pack format
 #endif
 #include "Zippy.hpp"
 
+#define XXH_INLINE_ALL
+#define XXH_NO_STREAM
+#include "xxhash.h"
+
 namespace mcpppp
 {
 #ifdef GUI
@@ -40,7 +43,7 @@ namespace mcpppp
 	inline std::ofstream logfile("mcpppp-log.txt");
 	static std::string logfilename = "mcpppp-log.txt";
 
-	inline std::set<std::string> paths = {};
+	inline std::set<std::filesystem::path> paths = {};
 	inline nlohmann::ordered_json config;
 	inline std::vector<std::pair<bool, std::filesystem::directory_entry>> entries = {};
 
@@ -73,6 +76,8 @@ namespace mcpppp
 	// vector of things already outputted, to be used when outputlevel is changed
 	// level, text
 	inline std::vector<std::pair<short, std::string>> outputted;
+
+	inline std::mutex output_mutex;
 #endif
 
 	inline std::atomic_bool waitdontoutput = false; // don't output probably since output is being redrawn
@@ -87,7 +92,33 @@ namespace mcpppp
 
 	void findreplace(std::string& source, const std::string& find, const std::string& replace);
 
+	void findreplace(std::u8string& source, const std::u8string& find, const std::u8string& replace);
+
+	std::string c8tomb(const std::u8string& s);
+
+	const char* c8tomb(const char8_t* s);
+
+	std::u8string mbtoc8(const std::string& s);
+
+	const char8_t* mbtoc8(const char* s);
+
 	std::string oftoregex(std::string of);
+
+	// lol
+	inline char* dupstr(const std::string& s)
+	{
+		// add one for null character
+		char* c = new char[s.size() + 1]{};
+		std::copy_n(s.begin(), s.size(), c);
+		return c;
+	}
+
+	/*// I love these new concept things
+	template<typename T>
+	concept outputtable = requires(T a)
+	{
+		std::stringstream() << a;
+	};*/
 
 	class outstream
 	{
@@ -95,16 +126,8 @@ namespace mcpppp
 		friend outstream out(const short& level) noexcept;
 		bool cout, file, err, first = false;
 		short level;
-		outstream(const bool& _first, const bool& _cout, const bool& _file, const bool& _err, const short& _level) noexcept
+		outstream(const bool _first, const bool _cout, const bool _file, const bool _err, const short& _level) noexcept
 			: cout(_cout), file(_file), err(_err), first(_first), level(_level) {}
-		// lol
-		static char* dupstr(const std::string& s)
-		{
-			// add one for null character
-			char* c = new char[s.size() + 1];
-			strncpy(c, s.c_str(), s.size() + 1);
-			return c;
-		}
 #ifdef GUI
 		static void print(void* v);
 #endif
@@ -118,43 +141,6 @@ namespace mcpppp
 		template<typename T>
 		outstream operator<<(const T& value)
 		{
-			if (cout)
-			{
-#ifdef GUI
-				// if there are no command line arguments, print to gui
-				// otherwise, print to command line like cli
-				if (argc < 2)
-				{
-					if (first)
-					{
-						sstream << (dotimestamp ? timestamp() : "");
-					}
-					sstream << value;
-				}
-				else
-#endif
-				{
-					if (first)
-					{
-						if (err)
-						{
-							std::cerr << (dotimestamp ? timestamp() : "");
-						}
-						else
-						{
-							std::cout << (dotimestamp ? timestamp() : "");
-						}
-					}
-					if (err)
-					{
-						std::cerr << value;
-					}
-					else
-					{
-						std::cout << value;
-					}
-				}
-			}
 			if (file && logfile.good())
 			{
 				if (first)
@@ -162,6 +148,42 @@ namespace mcpppp
 					logfile << timestamp();
 				}
 				logfile << value;
+			}
+#ifdef GUI
+			// if there are no command line arguments, ignore level print to gui
+			// otherwise, print to command line like cli
+			if (argc < 2)
+			{
+				if (first)
+				{
+					sstream << (dotimestamp ? timestamp() : "");
+				}
+				sstream << value;
+				first = false;
+				return *this;
+			}
+#endif
+			if (cout)
+			{
+				if (first)
+				{
+					if (err)
+					{
+						std::cerr << (dotimestamp ? timestamp() : "");
+					}
+					else
+					{
+						std::cout << (dotimestamp ? timestamp() : "");
+					}
+				}
+				if (err)
+				{
+					std::cerr << value;
+				}
+				else
+				{
+					std::cout << value;
+				}
 			}
 			first = false;
 			return *this;
@@ -176,15 +198,63 @@ namespace mcpppp
 
 	void copy(const std::filesystem::path& from, const std::filesystem::path& to);
 
-	void checkpackver(const std::filesystem::path& path);
+	bool findfolder(const std::u8string& path, const std::u8string& tofind, const bool zip);
 
-	bool findfolder(const std::string& path, const std::string& tofind, const bool& zip);
 
-	void unzip(const std::filesystem::path& path, Zippy::ZipArchive& zipa);
+	// seed will be cast to XXH32_hash_t if hash_size <=32
+	template<short hash_size = 64>
+	inline std::string hash(const void* data, const size_t size, const XXH64_hash_t& seed = 0)
+	{
+		static_assert(hash_size <= 128, "Hash size must be <=128");
 
-	void rezip(const std::string& folder, Zippy::ZipArchive& zipa);
+		const auto gethex = [](const std::variant<std::monostate, XXH32_hash_t, XXH64_hash_t, XXH128_hash_t>& rawhash) -> std::string
+		{
+			std::stringstream ss;
+			ss << std::setfill('0') << std::hex;
 
-	bool convert(const std::filesystem::path& path, const bool& dofsb = true, const bool& dovmt = true, const bool& docim = true);
+			if (rawhash.index() == 0) // type is monostate
+			{
+				out(5) << "Hash failed somehow???" << std::endl;
+				return std::string();
+			}
+
+			if constexpr (hash_size <= 32)
+			{
+				ss << std::setw(hash_size / 4) << std::get<XXH32_hash_t>(rawhash);
+			}
+			else if constexpr (hash_size <= 64) // 32 < size <= 64
+			{
+				ss << std::setw(hash_size / 4) << std::get<XXH64_hash_t>(rawhash);
+			}
+			else // 64 < size <= 128
+			{
+				const auto rawhashval = std::get<XXH128_hash_t>(rawhash);
+				ss << std::setw(16) << rawhashval.high64 <<
+					std::setw((hash_size - 64) / 4) << rawhashval.low64;
+			}
+
+			return ss.str();
+		};
+
+		std::variant<std::monostate, XXH32_hash_t, XXH64_hash_t, XXH128_hash_t> rawhash;
+
+		if constexpr (hash_size <= 32)
+		{
+			rawhash = XXH32(data, size, static_cast<XXH32_hash_t>(seed));
+		}
+		else if constexpr (hash_size <= 64) // 32 < size <= 64
+		{
+			rawhash = XXH3_64bits_withSeed(data, size, seed);
+		}
+		else // 64 < size <= 128
+		{
+			rawhash = XXH3_128bits_withSeed(data, size, seed);
+		}
+
+		return gethex(rawhash);
+	}
+
+	bool convert(const std::filesystem::path& path, const bool dofsb = true, const bool dovmt = true, const bool docim = true);
 
 	void gethashes();
 

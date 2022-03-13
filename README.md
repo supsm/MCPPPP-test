@@ -1,5 +1,14 @@
 # MCPatcherPatcher++
-[![CodeFactor](https://www.codefactor.io/repository/github/supsm/mcpppp/badge)](https://www.codefactor.io/repository/github/supsm/mcpppp) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/78de1baf045f4931ab13ccd7664c8d74)](https://www.codacy.com/gh/supsm/MCPPPP/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=supsm/MCPPPP&amp;utm_campaign=Badge_Grade) [![Coverity](https://img.shields.io/coverity/scan/mcpppp.svg)](https://scan.coverity.com/projects/mcpppp)  
+[![CodeFactor](https://www.codefactor.io/repository/github/supsm/mcpppp/badge)](https://www.codefactor.io/repository/github/supsm/mcpppp)
+[![Codacy](https://app.codacy.com/project/badge/Grade/78de1baf045f4931ab13ccd7664c8d74)](https://www.codacy.com/gh/supsm/MCPPPP/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=supsm/MCPPPP&amp;utm_campaign=Badge_Grade)
+[![Coverity](https://img.shields.io/coverity/scan/mcpppp.svg)](https://scan.coverity.com/projects/mcpppp)
+[![GitHub Build Status](https://img.shields.io/github/workflow/status/supsm/mcpppp/Compile)](https://github.com/supsm/MCPPPP/actions/workflows/compile.yml)  
+[![Latest Release](https://img.shields.io/github/v/release/supsm/mcpppp)](https://github.com/supsm/mcpppp/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/supsm/mcpppp/total?label=Github%20downloads)](https://github.com/supsm/mcpppp/releases)
+[![Modrinth Downloads](https://img.shields.io/modrinth/dt/V7z6aY71?label=Modrinth%20downloads)](https://modrinth.com/mod/mcpppp)
+[![Curseforge Downloads](https://cf.way2muchnoise.eu/565465.svg)](https://www.curseforge.com/minecraft/mc-mods/mcpppp)  
+[![License](https://img.shields.io/github/license/supsm/mcpppp)](https://github.com/supsm/mcpppp)
+[![Discord](https://img.shields.io/discord/824116179534348288?logo=discord)](https://discord.gg/waXJDswsaR)  
 A resource pack converter from Optifine format to newer and alternative formats. This project uses C++ and FLTK as the language and base framework. This might seem odd in the Minecraft community, but allows using 25MB of RAM, where other tools use excessive amounts of resources for no reason (LambdAurora's now discontinued MCPP used 50 MB idle). Note that RAM usage varies depending on what is being converted, FSB and zipped resource packs usually will use more. As a native application, it should also perform conversions faster.  
 
 ### Links  
@@ -8,8 +17,7 @@ A resource pack converter from Optifine format to newer and alternative formats.
 [Curseforge](https://www.curseforge.com/minecraft/mc-mods/mcpppp)  
 
 #### Formats
-Currently, the converter supports [Fabricskyboxes](https://modrinth.com/mod/fabricskyboxes).  
-[Varied Mob Textures](https://www.curseforge.com/minecraft/mc-mods/varied-mob-textures) isn't updated to 1.17 and doesn't have a set format yet, and [Chime](https://www.curseforge.com/minecraft/mc-mods/chime-fabric) also isn't updated to 1.17. Chime conversion will work if you build from source, but the conversion is not very complete.  
+Currently, the converter supports [Fabricskyboxes](https://modrinth.com/mod/fabricskyboxes), [Varied Mob Textures](https://www.curseforge.com/minecraft/mc-mods/varied-mob-textures), and [Chime](https://www.curseforge.com/minecraft/mc-mods/chime-fabric). Fabricskyboxes conversion is the most complete, Varied Mob Textures is probably ok, and Chime isn't very complete.  
 [Centime](https://github.com/SekoiaTree/Centime) will be supported eventually if I have enough time.  
 
 #### Important Note
@@ -18,12 +26,13 @@ Some websites have been stealing this project (you'll know what I mean if you se
 ## TLDR
 **Windows**: download `MCPPPP-windows.exe` from releases and double click on it.  
 **Mac**: download `MCPPPP-mac.tar.gz` from releases and double click on it. A file named `MCPPPP-mac` should appear in the same location. Double click on it.  
-**Linux**: download `MCPPPP-linux` (no gui) or `MCPPPP-linux-gui`. Make it executable and run it.  
+**Linux**: download `MCPPPP-linux-cli` (no gui) or `MCPPPP-linux` (has gui). Make it executable and run it.  
 
 ## Use
-Newly compiled binaries for linux, windows, and mac can be found in the repo in the `bin` directory. They may not be stable, and may not contain things from the latest commit. However, these are guaranteed to not immediately crash or have some obvious error. I will add releases when I feel it is stable enough.  
-`MCPPPP-windows.exe`, `MCPPPP-mac.tar.gz`, and `MCPPPP-linux-gui` will contain a gui.
-`MCPPPP-linux`, `MCPPPP-windows-cli`, and `MCPPPP-mac-cli` do not contain a gui. There is additional information below (Section **CLI**)  
+Newly compiled binaries for linux, windows, and mac can be found as build artifacts. Note that they may not be stable and may not work properly. I will add releases when I feel it is stable enough.  
+To access build artifacts, head to the [compile](https://github.com/supsm/MCPPPP/actions/workflows/compile.yml) page, click on the top result, then scroll down to artifacts. Download the artifact corresponding to your system, then unzip it.  
+`MCPPPP-windows.exe`, `MCPPPP-mac.tar.gz`, and `MCPPPP-linux` will contain a gui.
+`MCPPPP-windows-cli`, `MCPPPP-mac-cli.tar.gz`, and `MCPPPP-linux-cli` do not contain a gui. There is additional information below (Section **CLI**)  
   
 If a folder already contains the output directories (such as `assets/fabricskyboxes`), it will be skipped. If you want to re-convert this pack, delete the directory. MCPPPP will try to be as least invasive as possible, and will only modify these folders.  
 More detailed instructions below  
@@ -46,7 +55,8 @@ In the GUI version of MCPPPP, you can edit `mcpppp.properties` inside the gui. I
 This version can also accept command line arguments, but doing so will remove the gui entirely and function like the CLI version.  
 
 ## Build
-Prerequisites: Cmake, compiler with c++17  
+Prerequisites: Git, Cmake, compiler with c++20  
+1. Clone the repository with `git clone https://github.com/supsm/MCPPPP --depth=1` and navigate to the MCPPPP folder  
 To build MCPPPP from source, you should use cmake. There are 3 options for mcpppp, which are `MCPPPP_CLI`, `MCPPPP_GUI`, and `MCPPPP_JNI` (the rest are for fltk and should be ignored). `MCPPPP_JNI` defaults to false, the other two default to true.  
 In cmake-gui, simply check or uncheck these checkboxes.  
 If you wish to use cmake from the command line, 

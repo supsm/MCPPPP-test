@@ -1,9 +1,0 @@
-supsm/MCPPPP@mod:
-  - source: gradle.properties
-    dest: gradle.properties
-  - source: bin/mcpppp.dll
-    dest: src/main/resources/mcpppp.dll
-  - source: bin/libmcpppp.so
-    dest: src/main/resources/libmcpppp.so
-  - source: bin/libmcpppp.dylib
-    dest: src/main/resources/libmcpppp.dylib

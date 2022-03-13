@@ -21,6 +21,8 @@ using mcpppp::out;
 using mcpppp::paths;
 using mcpppp::entries;
 using mcpppp::deletedpaths;
+using mcpppp::c8tomb;
+using mcpppp::mbtoc8;
 
 // callback for run button
 void run(Fl_Button* o, void* v)
@@ -77,16 +79,16 @@ void reload(Fl_Button* o, void* v)
 	pad->hide();
 	pad->deactivate();
 	ui->scroll->end();
-	for (const std::string& path : paths)
+	for (const std::filesystem::path& path : paths)
 	{
-		if (std::filesystem::is_directory(std::filesystem::u8path(path)))
+		if (std::filesystem::is_directory(path))
 		{
-			for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::u8path(path)))
+			for (const auto& entry : std::filesystem::directory_iterator(path))
 			{
 				if (entry.is_directory() || entry.path().extension() == ".zip")
 				{
 					entries.push_back(std::make_pair(true, entry));
-					mcpppp::addpack(entry.path().filename().u8string(), true);
+					mcpppp::addpack(entry.path(), true);
 				}
 			}
 		}
@@ -101,17 +103,21 @@ void editpath(Fl_Input* o, void* v)
 	deletedpaths.insert(paths.begin(), paths.end());
 	paths.clear();
 	std::string str = o->value();
+	// std::string::contains in C++23
 	while (str.find(" // ") != std::string::npos)
 	{
 		const size_t i = str.find(" // ");
-		paths.insert(std::string(str.begin(), str.begin() + static_cast<std::string::difference_type>(i)));
-		deletedpaths.erase(std::string(str.begin(), str.begin() + static_cast<std::string::difference_type>(i)));
+		const std::u8string temppath = std::u8string(str.begin(), str.begin() + static_cast<std::string::difference_type>(i));
+		const std::filesystem::path path = std::filesystem::canonical(temppath);
+		paths.insert(path);
+		deletedpaths.erase(path);
 		str.erase(str.begin(), str.begin() + static_cast<std::string::difference_type>(i + 4));
 	}
 	if (!str.empty())
 	{
-		paths.insert(str);
-		deletedpaths.erase(str);
+		const std::filesystem::path path = std::filesystem::canonical(mbtoc8(str));
+		paths.insert(path);
+		deletedpaths.erase(path);
 	}
 	mcpppp::addpaths();
 	mcpppp::updatepathconfig();
@@ -120,18 +126,19 @@ void editpath(Fl_Input* o, void* v)
 // callback for "Add" button in "Edit Paths"
 void addrespath(Fl_Button* o, void* v)
 {
-	std::string str;
+	std::filesystem::path path;
 #ifdef _WIN32
-	str = mcpppp::winfilebrowser();
+	path = mbtoc8(mcpppp::winfilebrowser());
 #else
 	std::unique_ptr<Fl_Native_File_Chooser> chooser = std::make_unique<Fl_Native_File_Chooser>(Fl_Native_File_Chooser::BROWSE_DIRECTORY); // browse directory
 	chooser->show();
-	str = chooser->filename();
+	path = mbtoc8(chooser->filename());
 #endif
-	if (!str.empty() && paths.find(str) == paths.end())
+	path = std::filesystem::canonical(path);
+	if (!path.empty() && !paths.contains(path))
 	{
-		mcpppp::addpath(str);
-		deletedpaths.erase(str);
+		mcpppp::addpath(path);
+		deletedpaths.erase(path);
 		mcpppp::updatepaths();
 		mcpppp::updatepathconfig();
 		ui->edit_paths->redraw();
@@ -146,11 +153,13 @@ void deleterespath(Fl_Button* o, void* v)
 	{
 		return;
 	}
-	std::string s = selectedwidget->label();
+	std::u8string s = mbtoc8(selectedwidget->label());
 	// erase spaces used for padding
 	s.erase(s.begin(), s.begin() + 4);
-	paths.erase(s);
-	deletedpaths.insert(s);
+	std::filesystem::path path = std::filesystem::canonical(s);
+
+	paths.erase(path);
+	deletedpaths.insert(path);
 	selectedwidget.reset();
 	mcpppp::addpaths();
 	mcpppp::updatepaths();
@@ -279,7 +288,7 @@ void selectall(Fl_Check_Button* o, void* v)
 	pad.release();
 	for (auto& entry : entries)
 	{
-		mcpppp::addpack(entry.second.path().filename().u8string(), static_cast<bool>(o->value()));
+		mcpppp::addpack(entry.second.path(), static_cast<bool>(o->value()));
 		entry.first = static_cast<bool>(o->value());
 	}
 	ui->scroll->redraw();
@@ -292,6 +301,7 @@ void updateoutputlevel(Fl_Value_Slider* o, void* v)
 	mcpppp::waitdontoutput = true;
 	mcpppp::outputlevel = ui->outputlevelslider->value();
 	ui->output->clear();
+	mcpppp::output_mutex.lock();
 	for (const auto& p : mcpppp::outputted)
 	{
 		if (p.first >= mcpppp::outputlevel)
@@ -299,8 +309,15 @@ void updateoutputlevel(Fl_Value_Slider* o, void* v)
 			ui->output->add(("@S14@C" + std::to_string(mcpppp::outstream::colors.at(p.first - 1)) + "@." + p.second).c_str());
 		}
 	}
+	mcpppp::output_mutex.unlock();
 	ui->output->bottomline(ui->output->size());
 	mcpppp::waitdontoutput = false;
+	// save outputlevel setting
+	mcpppp::config["gui"]["settings"]["outputLevel"] = mcpppp::outputlevel;
+	std::ofstream fout("mcpppp-config.json");
+	fout << "// Please check out the Documentation for the config file before editing it yourself: https://github.com/supsm/MCPPPP/blob/master/CONFIG.md" << std::endl;
+	fout << mcpppp::config.dump(1, '\t') << std::endl;
+	fout.close();
 }
 
 // callback for closing main window

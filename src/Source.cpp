@@ -17,6 +17,7 @@
 #include <sstream>
 #include <vector>
 
+#include "constants.h"
 #include "utility.h"
 
 #ifdef GUI
@@ -30,6 +31,8 @@
 #endif
 
 using mcpppp::out;
+using mcpppp::c8tomb;
+using mcpppp::mbtoc8;
 
 int main(int argc, const char* argv[])
 try
@@ -171,21 +174,21 @@ try
 #ifndef GUI
 	out(3) << "Conversion Started" << std::endl;
 #endif
-	for (const std::string& path : mcpppp::paths)
+	for (const std::filesystem::path& path : mcpppp::paths)
 	{
-		if (!std::filesystem::is_directory(std::filesystem::u8path(path), ec))
+		if (!std::filesystem::is_directory(path, ec))
 		{
-			out(5) << "Invalid path: \'" << path << "\'" << std::endl << ec.message() << std::endl;
+			out(5) << "Invalid path: \'" << c8tomb(path.generic_u8string()) << "\'" << std::endl << ec.message() << std::endl;
 			continue;
 		}
-		out(2) << "Path: " << path << std::endl;
-		for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::u8path(path)))
+		out(2) << "Path: " << c8tomb(path.generic_u8string()) << std::endl;
+		for (const auto& entry : std::filesystem::directory_iterator(path))
 		{
 			if (entry.is_directory() || entry.path().extension() == ".zip")
 			{
-				mcpppp::entries.push_back(std::make_pair(true, entry));
+				mcpppp::entries.emplace_back(true, entry);
 #ifdef GUI
-				mcpppp::addpack(entry.path().filename().u8string(), true);
+				mcpppp::addpack(entry.path(), true);
 #endif
 			}
 		}

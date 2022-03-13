@@ -13,24 +13,26 @@ namespace mcpppp
 	struct checkinfo
 	{
 		checkresults results;
-		bool optifine, newlocation;
+		bool optifine;
+		bool vmt_newlocation;
+		bool iszip;
 	};
 }
 
 namespace fsb
 {
-	mcpppp::checkinfo check(const std::filesystem::path& path, const bool& zip);
-	void convert(const std::string& path, const std::string& filename, const mcpppp::checkinfo& info);
+	mcpppp::checkinfo check(const std::filesystem::path& path, const bool zip);
+	void convert(const std::filesystem::path& path, const std::u8string& filename, const mcpppp::checkinfo& info);
 }
 
 namespace vmt
 {
-	mcpppp::checkinfo check(const std::filesystem::path& path, const bool& zip);
-	void convert(const std::string& path, const std::string& filename, const mcpppp::checkinfo& info);
+	mcpppp::checkinfo check(const std::filesystem::path& path, const bool zip);
+	void convert(const std::filesystem::path& path, const std::u8string& filename, const mcpppp::checkinfo& info);
 }
 
 namespace cim
 {
-	mcpppp::checkinfo check(const std::filesystem::path& path, const bool& zip);
-	void convert(const std::string& path, const std::string& filename, const mcpppp::checkinfo& info);
+	mcpppp::checkinfo check(const std::filesystem::path& path, const bool zip);
+	void convert(const std::filesystem::path& path, const std::u8string& filename, const mcpppp::checkinfo& info);
 }
