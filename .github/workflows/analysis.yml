@@ -1,0 +1,137 @@
+﻿name: Staic Analysis
+
+on:
+  push:
+  pull_request:
+    branches:
+    - master
+  workflow_dispatch:
+
+env: # Comment env block if you do not want to apply fixes
+  # Apply linter fixes configuration
+  APPLY_FIXES: all # When active, APPLY_FIXES must also be defined as environment variable (in github/workflows/mega-linter.yml or other CI tool)
+  APPLY_FIXES_EVENT: pull_request # Decide which event triggers application of fixes in a commit or a PR (pull_request, push, all)
+  APPLY_FIXES_MODE: commit # If APPLY_FIXES is used, defines if the fixes are directly committed (commit) or posted in a PR (pull_request)
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  codacy:
+    name: Codacy
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@main
+
+    - name: Install Clang-Tidy
+      run: sudo apt update && sudo apt install -y clang-tidy-12
+
+    - name: Run Clang-Tidy
+      run: clang-tidy-12 --config-file=.clang-tidy src/Source.cpp src/fsb.cpp src/vmt.cpp src/cim.cpp src/utility.cpp -- -Iinclude -std=c++20 > clang.log
+
+    - name: Run Codacy Analysis CLI
+      uses: codacy/codacy-analysis-cli-action@master
+      with:
+        directory: ${PWD}/src/
+        clang-tidy-output: clang.log
+        output: results.sarif
+        format: sarif
+        # Adjust severity of non-security issues
+        gh-code-scanning-compat: true
+        project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+        upload: true
+
+    # Upload the SARIF file generated in the previous step
+    - name: Upload SARIF results file
+      uses: github/codeql-action/upload-sarif@main
+      with:
+        sarif_file: results.sarif
+
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v1
+      with:
+        languages: 'cpp'
+        # If you wish to specify custom queries, you can do so here or in a config file.
+        # By default, queries listed here will override any specified in a config file.
+        # Prefix the list here with "+" to use these queries and those in the config file.
+        # queries: ./path/to/local/query, your-org/your-repo/queries@main
+
+    # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
+    # If this step fails, then you should remove it and run the build manually (see below)
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v1
+
+    # ℹ️ Command-line programs to run using the OS shell.
+    # 📚 https://git.io/JvXDl
+
+    # ✏️ If the Autobuild fails above, remove it and uncomment the following three lines
+    #    and modify them (or add more) to build your code if your project
+    #    uses a compiled language
+
+    #- run: |
+    #   make bootstrap
+    #   make release
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v1
+
+
+  coverity:
+    name: Coverity
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      
+    - name: Download coverity
+      run: wget -q --post-data "token=${{ secrets.COVERITY_TOKEN }}&project=MCPPPP" -O cov-analysis.tar.gz https://scan.coverity.com/download/cxx/linux64 && mkdir cov-analysis && tar -xzf cov-analysis.tar.gz --strip 1 -C cov-analysis
+    - name: Configure Cmake
+      run: cmake -B build -DMCPPPP_CLI=TRUE -DMCPPPP_GUI=TRUE -DMCPPPP_JNI=TRUE
+    - name: Configure coverity
+      run: ./cov-analysis/bin/cov-configure --gcc
+    - name: Build
+      run: ./cov-analysis/bin/cov-build --dir cov-int cmake --build build --config Release
+    - name: Compress
+      run: tar -czf cov-int.tar.gz cov-int
+    - name: Upload
+      run: curl --form token=${{ secrets.COVERITY_TOKEN }} --form email=supsm2017@gmail.com --form file=@cov-int.tar.gz https://scan.coverity.com/builds?project=MCPPPP
+      
+
+  devskim:
+    name: DevSkim
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run DevSkim scanner
+        uses: microsoft/DevSkim-Action@v1
+        with:
+          ignore-globs: "**/lib/**, **/include/**, **/src/mcpppp.cxx, **/src/mcpppp.h, **/src/lodepng.cpp"
+        
+      - name: Upload DevSkim scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: devskim-results.sarif
+

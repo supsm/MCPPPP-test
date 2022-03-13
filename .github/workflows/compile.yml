@@ -1,0 +1,110 @@
+name: Compile
+
+on:
+  push:
+    branches:
+    - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: setup jdk
+
+      uses: actions/setup-java@v1
+      with:
+        java-version: 16
+
+    - name: configure cmake with clang-cl
+      if: ${{ runner.os == 'Windows' }}
+      run: cmake -B build -DMCPPPP_CLI=TRUE -DMCPPPP_GUI=TRUE -DMCPPPP_JNI=TRUE -T ClangCL
+    - name: configure cmake
+      if: ${{ runner.os != 'Windows' }}
+      run: cmake -B build -DMCPPPP_CLI=TRUE -DMCPPPP_GUI=TRUE -DMCPPPP_JNI=TRUE
+      env:
+        CC: clang
+        CXX: clang++
+
+    - name: build cmake
+      run: cmake --build build --config Release
+
+    - name: copy files (windows)
+      if: ${{ runner.os == 'Windows' }}
+      run: mkdir artifacts; cp build/bin/Release/* artifacts/
+      shell: powershell
+    - name: copy files (linux)
+      if: ${{ runner.os == 'Linux' }}
+      run: mkdir artifacts && cp build/bin/* artifacts/ && cp build/libmcpppp.so artifacts/
+    - name: copy files (mac)
+      if: ${{ runner.os == 'macOs' }}
+      run: mkdir artifacts && cp build/bin/* artifacts/ && cp build/libmcpppp.dylib artifacts/
+
+    - name: rename files (windows)
+      if: ${{ runner.os == 'Windows' }}
+      run: mv artifacts/MCPPPP-gui.exe artifacts/MCPPPP-windows.exe ; mv artifacts/MCPPPP-cli.exe artifacts/MCPPPP-windows-cli.exe
+      shell: powershell
+
+    - name: rename files (linux)
+      if: ${{ runner.os == 'Linux' }}
+      run: mv artifacts/MCPPPP-gui artifacts/MCPPPP-linux && mv artifacts/MCPPPP-cli artifacts/MCPPPP-linux-cli
+
+    - name: rename files (mac)
+      if: ${{ runner.os == 'macOs' }}
+      run: mv artifacts/MCPPPP-gui artifacts/MCPPPP-mac && mv artifacts/MCPPPP-cli artifacts/MCPPPP-mac-cli
+    - name: compress files (mac only)
+      if: ${{ runner.os == 'macOs' }}
+      run: cd artifacts && tar -czvf MCPPPP-mac.tar.gz MCPPPP-mac && tar -czvf MCPPPP-mac-cli.tar.gz MCPPPP-mac-cli && rm MCPPPP-mac && rm MCPPPP-mac-cli
+
+    - name: capture build artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ runner.os }}
+        path: artifacts/
+
+    - name: copy file (windows)
+      if: ${{ runner.os == 'Windows' }}
+      uses: dmnemec/copy_file_to_another_repo_action@main
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+      with:
+        source_file: 'artifacts/mcpppp.dll'
+        destination_repo: 'supsm/MCPPPP'
+        destination_branch: 'mod'
+        destination_folder: 'src/main/resources'
+        user_email: 'supsm2017@gmail.com'
+        user_name: 'supsm'
+        commit_message: 'copy windows libraries'
+        
+    - name: copy file (linux)
+      if: ${{ runner.os == 'Linux' }}
+      uses: dmnemec/copy_file_to_another_repo_action@main
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+      with:
+        source_file: 'artifacts/libmcpppp.so'
+        destination_repo: 'supsm/MCPPPP'
+        destination_branch: 'mod'
+        destination_folder: 'src/main/resources'
+        user_email: 'supsm2017@gmail.com'
+        user_name: 'supsm'
+        commit_message: 'copy linux libraries'
+        
+    - name: copy file (mac)
+      if: ${{ runner.os == 'macOs' }}
+      uses: dmnemec/copy_file_to_another_repo_action@main
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+      with:
+        source_file: 'artifacts/libmcpppp.dylib'
+        destination_repo: 'supsm/MCPPPP'
+        destination_branch: 'mod'
+        destination_folder: 'src/main/resources'
+        user_email: 'supsm2017@gmail.com'
+        user_name: 'supsm'
+        commit_message: 'copy mac libraries'
