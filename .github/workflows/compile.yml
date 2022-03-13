@@ -71,7 +71,7 @@ jobs:
       if: ${{ runner.os == 'Windows' }}
       uses: supsm/copy_file_to_another_repo@master
       env:
-        GH_PAT: ${{ secrets.GH_PAT }}
+        API_TOKEN_GITHUB: ${{ secrets.GH_PAT }}
       with:
         source_file: 'artifacts/mcpppp.dll'
         destination_repo: 'supsm/MCPPPP'
@@ -85,7 +85,7 @@ jobs:
       if: ${{ runner.os == 'Linux' }}
       uses: supsm/copy_file_to_another_repo@master
       env:
-        GH_PAT: ${{ secrets.GH_PAT }}
+        API_TOKEN_GITHUB: ${{ secrets.GH_PAT }}
       with:
         source_file: 'artifacts/libmcpppp.so'
         destination_repo: 'supsm/MCPPPP'
@@ -99,7 +99,7 @@ jobs:
       if: ${{ runner.os == 'macOs' }}
       uses: supsm/copy_file_to_another_repo@master
       env:
-        GH_PAT: ${{ secrets.GH_PAT }}
+        API_TOKEN_GITHUB: ${{ secrets.GH_PAT }}
       with:
         source_file: 'artifacts/libmcpppp.dylib'
         destination_repo: 'supsm/MCPPPP'
