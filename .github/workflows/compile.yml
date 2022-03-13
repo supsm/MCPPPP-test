@@ -69,7 +69,7 @@ jobs:
 
     - name: copy file (windows)
       if: ${{ runner.os == 'Windows' }}
-      uses: dmnemec/copy_file_to_another_repo_action@main
+      uses: supsm/copy_file_to_another_repo@master
       env:
         GH_PAT: ${{ secrets.GH_PAT }}
       with:
@@ -83,7 +83,7 @@ jobs:
         
     - name: copy file (linux)
       if: ${{ runner.os == 'Linux' }}
-      uses: dmnemec/copy_file_to_another_repo_action@main
+      uses: supsm/copy_file_to_another_repo@master
       env:
         GH_PAT: ${{ secrets.GH_PAT }}
       with:
@@ -97,7 +97,7 @@ jobs:
         
     - name: copy file (mac)
       if: ${{ runner.os == 'macOs' }}
-      uses: dmnemec/copy_file_to_another_repo_action@main
+      uses: supsm/copy_file_to_another_repo@master
       env:
         GH_PAT: ${{ secrets.GH_PAT }}
       with:
