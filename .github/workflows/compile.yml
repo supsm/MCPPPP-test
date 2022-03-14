@@ -22,8 +22,12 @@ jobs:
         java-version: 16
 
     - name: test mktemp
-      run: echo $(mktemp -d)
+      run: |
+        export CLONE_DIR="$(mktemp -d)"
+        echo $CLONE_DIR
       shell: bash
+    - name: test clone
+      run: git clone --single-branch --branch mod "https://x-access-token:${{ secrets.GH_PAT }}@github.com/supsm/MCPPPP.git" "$CLONE_DIR"
 
     - name: configure cmake with clang-cl
       if: ${{ runner.os == 'Windows' }}
