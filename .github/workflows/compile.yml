@@ -23,7 +23,7 @@ jobs:
 
     - name: test mktemp
       run: |
-        export CLONE_DIR="$(mktemp -d)"
+        echo "CLONE_DIR=$(mktemp -d)" >> $GITHUB_ENV
         echo $CLONE_DIR
       shell: bash
     - name: test clone
