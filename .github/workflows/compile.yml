@@ -21,6 +21,10 @@ jobs:
       with:
         java-version: 16
 
+    - name: test mktemp
+      run: echo $(mktemp -d)
+      shell: bash
+
     - name: configure cmake with clang-cl
       if: ${{ runner.os == 'Windows' }}
       run: cmake -B build -DMCPPPP_CLI=TRUE -DMCPPPP_GUI=TRUE -DMCPPPP_JNI=TRUE -T ClangCL
