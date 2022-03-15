@@ -35,7 +35,7 @@ jobs:
         CXX: clang++
 
     - name: build cmake
-      run: cmake --build build --config Release
+      run: cmake --build build --config Release --parallel 16
 
     - name: copy files (windows)
       if: ${{ runner.os == 'Windows' }}
