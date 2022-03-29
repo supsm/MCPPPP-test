@@ -111,3 +111,8 @@ jobs:
         user_email: 'supsm2017@gmail.com'
         user_name: 'supsm'
         commit_message: 'copy mac libraries'
+
+  build-linux-arm:
+    runs-on: ubuntu-latest
+    steps:
+    - run: sudo apt install -y clang++-12-aarch64-linux-gnu 
