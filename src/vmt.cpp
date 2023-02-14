@@ -2,31 +2,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#include <algorithm>
-#include <cctype>
-#include <filesystem>
-#include <limits>
-#include <map>
-#include <sstream>
-#include <string>
-#include <tuple>
-#include <unordered_set>
-#include <vector>
+#include "pch.h"
 
 #include "constants.h"
-#include "reselect.h"
 #include "convert.h"
 #include "utility.h"
+#include "reselect.h"
 
-using mcpppp::out;
+using mcpppp::output;
+using mcpppp::level_t;
 using mcpppp::c8tomb;
 using mcpppp::mbtoc8;
+using mcpppp::checkpoint;
 
 namespace vmt
 {
+	// names of png files (axolotl69.png -> "axolotl")
 	static std::unordered_set<std::string> png_names;
+	// filenames of png files (relative to vmt folder)
 	static std::unordered_set<std::u8string> png_filenames;
 
+	// special mob info
 	class s_mob_t
 	{
 	public:
@@ -55,19 +51,15 @@ namespace vmt
 		}
 		if (num.empty())
 		{
+			checkpoint();
 			return { name, -1 };
 		}
 		else
 		{
 			std::reverse(num.begin(), num.end());
+			checkpoint();
 			return { name, std::stoi(num) };
 		}
-	}
-
-	static std::string getfilenamehash(const std::filesystem::path& path, const bool zip)
-	{
-		const std::u8string u8s = path.filename().u8string() + (zip ? u8".zip" : u8"");
-		return mcpppp::hash<32>(u8s.data(), u8s.size());
 	}
 
 	// moves vmt pngs to new location
@@ -77,7 +69,7 @@ namespace vmt
 	// @param entry  actual png file to convert
 	static void png(const std::filesystem::path& path, const bool optifine, const bool newlocation, const bool zip, const std::filesystem::directory_entry& entry)
 	{
-		const std::u8string mcnamespace = u8"mcpppp_" + mbtoc8(getfilenamehash(path, zip));
+		const std::u8string mcnamespace = u8"mcpppp_" + mbtoc8(mcpppp::conv::getfilenamehash(path, zip));
 		const auto p = separate(c8tomb(entry.path().filename().stem().generic_u8string()));
 		const std::string curname = p.first;
 		// current name is new, look for all textures
@@ -92,7 +84,11 @@ namespace vmt
 				// I'd prefer to use std::filesystem::relative here, but given 2 equal paths it returns "." instead of ""
 				std::u8string tempfolderpath = std::filesystem::canonical(entry.path().parent_path()).generic_u8string();
 				tempfolderpath.erase(tempfolderpath.begin(),
-					tempfolderpath.begin() + std::filesystem::canonical(path / location).generic_u8string().size() + 1);
+					tempfolderpath.begin() + std::filesystem::canonical(path / location).generic_u8string().size());
+				if (!tempfolderpath.empty())
+				{
+					tempfolderpath.erase(tempfolderpath.begin());
+				}
 				folderpath = tempfolderpath;
 			}
 
@@ -114,6 +110,7 @@ namespace vmt
 				png_filenames.insert((folderpath / curfilename).generic_u8string());
 			}
 			png_names.insert(curname);
+			checkpoint();
 
 			// randomly select between each texture, if there is more than just the default path
 			if (paths.size() > 1)
@@ -125,6 +122,7 @@ namespace vmt
 				fout.write(str.c_str(), str.size());
 				fout.close();
 			}
+			checkpoint();
 		}
 		else
 		{
@@ -133,7 +131,11 @@ namespace vmt
 				const std::filesystem::path location = (optifine ? (newlocation ? u8"assets/minecraft/optifine/random/entity" : u8"assets/minecraft/optifine/mob") : u8"assets/minecraft/mcpatcher/mob");
 				std::u8string tempfolderpath = std::filesystem::canonical(entry.path().parent_path()).generic_u8string();
 				tempfolderpath.erase(tempfolderpath.begin(),
-					tempfolderpath.begin() + std::filesystem::canonical(path / location).generic_u8string().size() + 1);
+					tempfolderpath.begin() + std::filesystem::canonical(path / location).generic_u8string().size());
+				if (!tempfolderpath.empty())
+				{
+					tempfolderpath.erase(tempfolderpath.begin());
+				}
 				folderpath = tempfolderpath;
 			}
 
@@ -142,61 +144,61 @@ namespace vmt
 				mcpppp::copy(entry.path(), path / u8"assets" / mcnamespace / u8"vmt" / folderpath / entry.path().filename().u8string());
 				png_filenames.insert((folderpath / entry.path().filename()).generic_u8string());
 			}
+			checkpoint();
 		}
 	}
 
+	// string match type
 	enum class match_type { normal, regex, iregex };
 
+	// read and parse optifine properties file
+	// @param path  path to resource pack
+	// @param newlocation  whether the new location (random/entity) is used instead of old location (mob)
+	// @param zip  whether resource pack is zipped
+	// @param entry  directory entry of properties file to parse
+	// @param name  filename of properties file without extension (output)
+	// @param folderpath  relative path of parent folder of `entry` from vmt folder (output)
+	// @param textures  textures to select from (output)
+	// @param weights  weights to apply on random selection for textures (output)
+	// @param biomes  biome predicates (output)
+	// @param heights  height predicates as a min and max value (output)
+	// @param minheight  minheight predicate for legacy compatibility (output)
+	// @param maxheight  maxheight predicate for legacy compatibility (output)
+	// @param names  name predicates (output)
+	// @param baby  baby predicate (output)
+	// @param healths  health predicates as a tuple of <min, max, ispercent> (output)
+	// @param times  day time predicates (output)
+	// @param weather  [FORMAT SHOULD BE UPDATED] weather predicate (output)
 	static void read_prop(const std::filesystem::path& path, const bool newlocation, const bool zip, const std::filesystem::directory_entry& entry,
 		std::string& name,
 		std::u8string& folderpath,
 		std::vector<std::vector<std::string>>& textures,
 		std::vector<std::vector<int>>& weights,
 		std::vector<std::vector<std::string>>& biomes,
-		std::vector<std::vector<std::pair<std::string, std::string>>>& heights,
+		std::vector<std::vector<std::pair<int, int>>>& heights,
 		std::vector<std::string>& minheight,
 		std::vector<std::string>& maxheight,
 		std::vector<std::pair<std::string, match_type>>& names,
 		std::vector<int>& baby,
 		std::vector<std::vector<std::tuple<std::string, std::string, bool>>>& healths,
-		std::vector<std::vector<std::pair<std::string, std::string>>>& times,
+		std::vector<std::vector<std::pair<int, int>>>& times,
 		std::vector<std::array<bool, 4>>& weather)
 	{
-		long long curnum;
+		long long curnum = 0;
 		// TODO: there's probably a better way to do this (folderpath)
 		folderpath = entry.path().generic_u8string();
 		folderpath.erase(folderpath.begin(), folderpath.begin() + static_cast<std::string::difference_type>(folderpath.rfind(newlocation ? u8"/random/entity/" : u8"/mob/") + (newlocation ? 15 : 5)));
 		folderpath.erase(folderpath.end() - static_cast<std::string::difference_type>(entry.path().filename().u8string().size()), folderpath.end());
 		name = c8tomb(entry.path().stem().generic_u8string());
-		std::string temp, option, value, tempnum;
-		std::stringstream ss;
+
 		std::ifstream fin(entry.path());
-		while (fin)
+		std::string rawdata{ std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>() };
+		const auto prop_data = mcpppp::conv::parse_properties(rawdata);
+		checkpoint();
+
+		for (const auto& [option, value] : prop_data)
 		{
-			std::getline(fin, temp);
-			option.clear();
-			value.clear();
-			bool isvalue = false;
-			if (temp.empty() || temp.front() == '#')
-			{
-				continue;
-			}
-			for (const char& c : temp)
-			{
-				if (c == '=')
-				{
-					isvalue = true;
-				}
-				else if (!isvalue)
-				{
-					option += c;
-				}
-				else // isvalue
-				{
-					value += c;
-				}
-			}
-			tempnum.clear();
+			std::string tempnum;
 			for (size_t i = option.size(); i >= 1; i--)
 			{
 				if (option.at(i - 1) >= '0' && option.at(i - 1) <= '9')
@@ -234,19 +236,18 @@ namespace vmt
 				{
 					if (option.starts_with('t')) // starts with textures
 					{
-						out(2) << "(warn) VMT: Duplicate predicate textures." << curnum << " in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+						output<level_t::info>("(warn) VMT: Duplicate predicate textures.{} in {}", curnum, c8tomb(entry.path().generic_u8string()));
 					}
 					else
 					{
-						out(2) << "(warn) VMT: Duplicate predicate skins." << curnum << " in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+						output<level_t::info>("(warn) VMT: Duplicate predicate skins.{} in {}", curnum, c8tomb(entry.path().generic_u8string()));
 					}
 					textures.at(static_cast<size_t>(curnum - 1)).clear();
 				}
-				ss.clear();
-				ss.str(value);
+				std::istringstream ss(value);
 				while (ss)
 				{
-					temp = "";
+					std::string temp;
 					ss >> temp;
 					if (!temp.empty())
 					{
@@ -256,44 +257,52 @@ namespace vmt
 						}
 						else
 						{
-							textures.at(static_cast<size_t>(curnum - 1)).push_back("mcpppp_" + getfilenamehash(path, zip) + ':' + c8tomb((std::filesystem::path(u8"vmt") / folderpath / mbtoc8(name) / (mbtoc8(temp) + u8".png")).generic_u8string()));
+							textures.at(static_cast<size_t>(curnum - 1)).push_back("mcpppp_" + mcpppp::conv::getfilenamehash(path, zip) + ':' + c8tomb((std::filesystem::path(u8"vmt") / folderpath / mbtoc8(name) / (mbtoc8(temp) + u8".png")).generic_u8string()));
 						}
 					}
 				}
+				checkpoint();
 			}
 			else if (option.starts_with("weights."))
 			{
 				// clear if already has elements (should not happen!)
 				if (!weights.at(static_cast<size_t>(curnum - 1)).empty())
 				{
-					out(2) << "(warn) VMT: Duplicate predicate weights." << curnum << " in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+					output<level_t::info>("(warn) VMT: Duplicate predicate weights.{} in {}", curnum, c8tomb(entry.path().generic_u8string()));
 					weights.at(static_cast<size_t>(curnum - 1)).clear();
 				}
-				ss.clear();
-				ss.str(value);
+				std::istringstream ss(value);
 				while (ss)
 				{
-					temp = "";
+					std::string temp;
 					ss >> temp;
 					if (!temp.empty())
 					{
-						weights.at(static_cast<size_t>(curnum - 1)).push_back(stoi(temp));
+						try
+						{
+							weights.at(static_cast<size_t>(curnum - 1)).push_back(stoi(temp));
+						}
+						catch (const std::invalid_argument& e)
+						{
+							output<level_t::error>("VMT Error: {}\n\tIn file \"{}\"\n\tstoi argument is \"{}\"", e.what(), c8tomb(entry.path().generic_u8string()), value);
+							return;
+						}
 					}
 				}
+				checkpoint();
 			}
 			else if (option.starts_with("biomes."))
 			{
 				// clear if already has elements (should not happen!)
 				if (!biomes.at(static_cast<size_t>(curnum - 1)).empty())
 				{
-					out(2) << "(warn) VMT: Duplicate predicate biomes." << curnum << " in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+					output<level_t::info>("(warn) VMT: Duplicate predicate biomes.{} in {}", curnum, c8tomb(entry.path().generic_u8string()));
 					biomes.at(static_cast<size_t>(curnum - 1)).clear();
 				}
-				ss.clear();
-				ss.str(value);
+				std::istringstream ss(value);
 				while (ss)
 				{
-					temp = "";
+					std::string temp;
 					ss >> temp;
 					if (!temp.empty())
 					{
@@ -303,11 +312,11 @@ namespace vmt
 							// binary search for biome name
 							const auto it = std::lower_bound(biomelist.begin(), biomelist.end(), temp, [](const std::string& a, const std::string& b) -> bool
 								{
-									return mcpppp::lowercase(mcpppp::ununderscore(a)) < mcpppp::lowercase(mcpppp::ununderscore(b));
+									return mcpppp::lowercase(mcpppp::conv::ununderscore(a)) < mcpppp::lowercase(mcpppp::conv::ununderscore(b));
 								});
-							if (it == biomelist.end() || (mcpppp::ununderscore(*it) != mcpppp::lowercase(mcpppp::ununderscore(temp))))
+							if (it == biomelist.end() || (mcpppp::conv::ununderscore(*it) != mcpppp::lowercase(mcpppp::conv::ununderscore(temp))))
 							{
-								out(2) << "(warn) Invalid biome name: " << temp << std::endl;
+								output<level_t::info>("(warn) VMT: Invalid biome name: {}", temp);
 							}
 							else
 							{
@@ -320,48 +329,41 @@ namespace vmt
 						}
 					}
 				}
+				checkpoint();
 			}
 			else if (option.starts_with("heights."))
 			{
 				// clear if already has elements (should not happen!)
 				if (!heights.at(static_cast<size_t>(curnum - 1)).empty())
 				{
-					out(2) << "(warn) VMT: Duplicate predicate heights." << curnum << " in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+					output<level_t::info>("(warn) VMT: Duplicate predicate heights.{} in {}", curnum, c8tomb(entry.path().generic_u8string()));
 					heights.at(static_cast<size_t>(curnum - 1)).clear();
 				}
-				ss.clear();
-				ss.str(value);
+				std::istringstream ss(value);
 				while (ss)
 				{
-					temp = "";
+					std::string temp;
 					ss >> temp;
 					if (!temp.empty())
 					{
-						std::string height1;
-						for (size_t i = 0; i < temp.size(); i++)
-						{
-							if (temp.at(i) == '-')
-							{
-								temp.erase(temp.begin(), temp.begin() + static_cast<std::string::difference_type>(i));
-								break;
-							}
-							height1 += temp.at(i);
-						}
-						heights.at(static_cast<size_t>(curnum - 1)).push_back(std::make_pair(height1, temp));
+						heights.at(static_cast<size_t>(curnum - 1)).push_back(mcpppp::conv::parse_range(temp));
 					}
 				}
+				checkpoint();
 			}
 			else if (option.starts_with("minHeight"))
 			{
 				minheight.at(static_cast<size_t>(curnum - 1)) = value;
+				checkpoint();
 			}
 			else if (option.starts_with("maxHeight"))
 			{
 				maxheight.at(static_cast<size_t>(curnum - 1)) = value;
+				checkpoint();
 			}
 			else if (option.starts_with("name."))
 			{
-				temp = value;
+				std::string temp = value;
 				match_type type = match_type::normal;
 				if (temp.starts_with("regex:") || temp.starts_with("iregex:") || temp.starts_with("pattern:") || temp.starts_with("ipattern:"))
 				{
@@ -377,10 +379,11 @@ namespace vmt
 					}
 					if (temp.starts_with("pattern:") || temp.starts_with("ipattern:"))
 					{
-						temp = mcpppp::oftoregex(temp);
+						temp = mcpppp::conv::oftoregex(temp);
 					}
 				}
 				names.at(static_cast<size_t>(curnum - 1)) = std::make_pair(temp, type);
+				checkpoint();
 			}
 			else if (option.starts_with("professions."))
 			{
@@ -400,20 +403,20 @@ namespace vmt
 				{
 					baby.at(static_cast<size_t>(curnum - 1)) = 0;
 				}
+				checkpoint();
 			}
 			else if (option.starts_with("health."))
 			{
 				// clear if already has elements (should not happen!)
 				if (!healths.at(static_cast<size_t>(curnum - 1)).empty())
 				{
-					out(2) << "(warn) VMT: Duplicate predicate healths." << curnum << " in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+					output<level_t::info>("(warn) VMT: Duplicate predicate healths.{} in {}", curnum, c8tomb(entry.path().generic_u8string()));
 					healths.at(static_cast<size_t>(curnum - 1)).clear();
 				}
-				ss.clear();
-				ss.str(value);
+				std::istringstream ss(value);
 				while (ss)
 				{
-					temp = "";
+					std::string temp;
 					ss >> temp;
 					if (!temp.empty())
 					{
@@ -439,6 +442,7 @@ namespace vmt
 						}
 					}
 				}
+				checkpoint();
 			}
 			else if (option.starts_with("moonPhase."))
 			{
@@ -449,38 +453,27 @@ namespace vmt
 				// clear if already has elements (should not happen!)
 				if (!times.at(static_cast<size_t>(curnum - 1)).empty())
 				{
-					out(2) << "(warn) VMT: Duplicate predicate dayTime." << curnum << " in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+					output<level_t::info>("(warn) VMT: Duplicate predicate dayTime.{} in {}", curnum, c8tomb(entry.path().generic_u8string()));
 					times.at(static_cast<size_t>(curnum - 1)).clear();
 				}
-				ss.clear();
-				ss.str(value);
+				std::istringstream ss(value);
 				while (ss)
 				{
-					temp = "";
+					std::string temp;
 					ss >> temp;
 					if (!temp.empty())
 					{
-						std::string time1;
-						for (size_t i = 0; i < temp.size(); i++)
-						{
-							if (temp.at(i) == '-')
-							{
-								temp.erase(temp.begin(), temp.begin() + static_cast<std::string::difference_type>(i));
-								break;
-							}
-							time1 += temp.at(i);
-						}
-						times.at(static_cast<size_t>(curnum - 1)).push_back(std::make_pair(time1, temp));
+						times.at(static_cast<size_t>(curnum - 1)).push_back(mcpppp::conv::parse_range(temp));
 					}
 				}
+				checkpoint();
 			}
 			else if (option.starts_with("weather."))
 			{
-				ss.clear();
-				ss.str(value);
+				std::istringstream ss(value);
 				while (ss)
 				{
-					temp = "";
+					std::string temp;
 					ss >> temp;
 					if (temp == "clear")
 					{
@@ -498,11 +491,16 @@ namespace vmt
 						weather.at(static_cast<size_t>(curnum - 1)).at(0) = true;
 					}
 				}
+				checkpoint();
 			}
 		}
 	}
 
 	// converts optifine properties to vmt/reselect
+	// @param path  path to resourcepack
+	// @param newlocation  use new optifine location (random/entity) instead of old location (mob)
+	// @param zip  whether resourcepack is zipped
+	// @param entry  directory entry of properties file
 	static void prop(const std::filesystem::path& path, const bool newlocation, const bool zip, const std::filesystem::directory_entry& entry)
 	{
 		std::string name;
@@ -510,12 +508,12 @@ namespace vmt
 		std::vector<std::vector<std::string>> textures;
 		std::vector<std::vector<int>> weights;
 		std::vector<std::vector<std::string>> biomes;
-		std::vector<std::vector<std::pair<std::string, std::string>>> heights;
+		std::vector<std::vector<std::pair<int, int>>> heights;
 		std::vector<std::string> minheight, maxheight;
 		std::vector<std::pair<std::string, match_type>> names;
 		std::vector<int> baby;
 		std::vector<std::vector<std::tuple<std::string, std::string, bool>>> healths;
-		std::vector<std::vector<std::pair<std::string, std::string>>> times;
+		std::vector<std::vector<std::pair<int, int>>> times;
 		std::vector<std::array<bool, 4>> weather;
 		read_prop(path, newlocation, zip, entry, name, folderpath, textures, weights, biomes, heights, minheight, maxheight, names, baby, healths, times, weather);
 		if (!folderpath.empty())
@@ -542,9 +540,10 @@ namespace vmt
 			}
 			if (sm_ind == -1)
 			{
-				out(2) << "(warn) VMT: Invalid/unsupported mob: " << name << std::endl;
+				output<level_t::info>("(warn) VMT: Invalid/unsupported mob: {}", name);
 				return;
 			}
+			checkpoint();
 		}
 
 		const auto formatdecimal = [&name](std::string& s) -> void
@@ -556,7 +555,7 @@ namespace vmt
 			}
 			catch (const std::invalid_argument& e)
 			{
-				out(5) << "VMT Error: " << e.what() << " in " << name << std::endl << "stod argument: " << s << std::endl;
+				output<level_t::error>("VMT Error: {} in {}\nstod argument: {}", e.what(), name, s);
 				s = "-6969.42"; // error value, may be useful in identifying what error happened
 				return;
 			}
@@ -576,7 +575,7 @@ namespace vmt
 		{
 			if (textures.at(i).empty())
 			{
-				out(2) << "(warn) VMT: textures." << i + 1 << " is empty in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+				output<level_t::info>("(warn) VMT: textures.{} is empty in {}", i + 1, c8tomb(entry.path().generic_u8string()));
 				continue;
 			}
 			reselect temp_res;
@@ -611,19 +610,18 @@ namespace vmt
 				{
 					temp_conditions.emplace_back("not " + name + ".is_baby", false);
 				}
+				checkpoint();
 			}
 
 			if (!heights.at(i).empty())
 			{
 				std::vector<std::string> tempv;
-				std::transform(heights.at(i).begin(), heights.at(i).end(), std::back_inserter(tempv), [&name, &formatdecimal](std::pair<std::string, std::string> p) -> std::string
+				std::transform(heights.at(i).begin(), heights.at(i).end(), std::back_inserter(tempv), [&name, &formatdecimal](std::pair<int, int> p) -> std::string
 					{
-						formatdecimal(p.first);
-						formatdecimal(p.second);
-						return '(' + name + ".y >= " + p.first + " and " +
-							name + ".y <= " + p.second + ')';
+						return fmt::format("({0}.y >= {1}.0 and {0}.y <= {2}.0)", name, p.first, p.second);
 					});
 				temp_conditions.push_back(reselect::construct_or(tempv));
+				checkpoint();
 			}
 			// heights.n overrides minHeight, maxHeight
 			// valid if either minheight or maxheight is set
@@ -634,7 +632,7 @@ namespace vmt
 				formatdecimal(cur_maxheight);
 				if (!minheight.at(i).empty())
 				{
-					s += name + ".y >= " + cur_minheight;
+					s += fmt::format("{}.y >= {}", name, cur_minheight);
 				}
 				if (!maxheight.at(i).empty())
 				{
@@ -642,9 +640,10 @@ namespace vmt
 					{
 						s += " and ";
 					}
-					s += name + ".y <= " + cur_maxheight;
+					s += fmt::format("{}.y <= {}", name, cur_maxheight);
 				}
 				temp_conditions.emplace_back(s, false);
+				checkpoint();
 			}
 
 			if (!healths.at(i).empty())
@@ -663,16 +662,17 @@ namespace vmt
 							// TODO: replace with actual max health once it is implemented
 							std::string maxhealth = std::to_string(mob_healths.at(name));
 							formatdecimal(maxhealth);
-							return '(' + name + ".health * 100.0 / " + maxhealth + " >= " + lower + " and " +
-								name + ".health * 100 / " + maxhealth + " <= " + upper + ')';
+							return fmt::format("({0}.health * 100.0 / {1} >= {2} and {0}.health * 100.0 / {1} <= {3})",
+								name, maxhealth, lower, upper);
 						}
 						else // if value
 						{
-							return '(' + name + ".health >= " + lower + " and " +
-								name + ".health <= " + upper + ')';
+							return fmt::format("({0}.health >= {1} and {0}.health <= {2})",
+								name, lower, upper);
 						}
 					});
 				temp_conditions.push_back(reselect::construct_or(tempv));
+				checkpoint();
 			}
 
 			if (!biomes.at(i).empty())
@@ -680,9 +680,10 @@ namespace vmt
 				std::vector<std::string> tempv;
 				std::transform(biomes.at(i).begin(), biomes.at(i).end(), std::back_inserter(tempv), [&name](const std::string& s) -> std::string
 					{
-						return name + ".current_biome == \"" + s + '\"';
+						return fmt::format("{}.current_biome == \"{}\"", name, s);
 					});
 				temp_conditions.push_back(reselect::construct_or(tempv));
+				checkpoint();
 			}
 
 			if (!names.at(i).first.empty())
@@ -701,6 +702,7 @@ namespace vmt
 					break;
 				}
 				temp_conditions.emplace_back(condition, false);
+				checkpoint();
 			}
 
 
@@ -714,13 +716,14 @@ namespace vmt
 				conditions.push_back(reselect::construct_and(temp_conditions));
 			}
 			statements.push_back(temp_res);
+			checkpoint();
 		}
 
 		res.add_if(conditions, statements, defaultstatement);
 
 		if (res.empty())
 		{
-			out(2) << "(warn) VMT: No predicates found in " << c8tomb(entry.path().generic_u8string()) << std::endl;
+			output<level_t::info>("(warn) VMT: No predicates found in {}", c8tomb(entry.path().generic_u8string()));
 			return;
 		}
 
@@ -737,16 +740,16 @@ namespace vmt
 			const std::string type = s.get_typename(raw_type);
 			s_mobs[name].push_back({ type, s.reselect_func, res });
 		}
+		checkpoint();
 	}
 
-	// check if should be converted
-	mcpppp::checkinfo check(const std::filesystem::path& path, const bool zip)
+	mcpppp::checkinfo check(const std::filesystem::path& path, const bool zip) noexcept
 	{
 		using mcpppp::checkresults;
 
 		bool reconverting = false;
 
-		if (mcpppp::findfolder(path.generic_u8string(), u8"assets/vmt/", zip))
+		if (mcpppp::findfolder(path, u8"assets/vmt/", zip))
 		{
 			if (mcpppp::autoreconvert)
 			{
@@ -757,7 +760,7 @@ namespace vmt
 				return { checkresults::alrfound, false, false, zip };
 			}
 		}
-		if (mcpppp::findfolder(path.generic_u8string(), u8"assets/minecraft/optifine/random/entity/", zip))
+		if (mcpppp::findfolder(path, u8"assets/minecraft/optifine/random/entity/", zip))
 		{
 			if (reconverting)
 			{
@@ -768,7 +771,7 @@ namespace vmt
 				return { checkresults::valid, true, true, zip };
 			}
 		}
-		else if (mcpppp::findfolder(path.generic_u8string(), u8"assets/minecraft/optifine/mob/", zip))
+		else if (mcpppp::findfolder(path, u8"assets/minecraft/optifine/mob/", zip))
 		{
 			if (reconverting)
 			{
@@ -779,7 +782,7 @@ namespace vmt
 				return { checkresults::valid, true, false, zip };
 			}
 		}
-		else if (mcpppp::findfolder(path.generic_u8string(), u8"assets/minecraft/mcpatcher/mob/", zip))
+		else if (mcpppp::findfolder(path, u8"assets/minecraft/mcpatcher/mob/", zip))
 		{
 			if (reconverting)
 			{
@@ -794,45 +797,49 @@ namespace vmt
 		{
 			return { checkresults::noneconvertible, false, false, zip };
 		}
+		checkpoint();
 	}
 
-	// main vmt function
 	void convert(const std::filesystem::path& path, const std::u8string& filename, const mcpppp::checkinfo& info)
 	{
 		// source: assets/minecraft/*/mob/		< this can be of or mcpatcher, but the one below is of only
 		// source: assets/minecraft/optifine/random/entity/
 		// destination: assets/mcpppp_[hash]/vmt/
 
-		out(3) << "VMT: Converting Pack " << c8tomb(filename) << std::endl;
+		output<level_t::important>("VMT: Converting Pack {}", c8tomb(filename));
 
-		// convert all images first, so the reselect file can be overridden
+		std::vector<std::filesystem::directory_entry> pngfiles, propfiles;
+
+		// save png files and prop files so we don't need to iterate over the directory twice
 		for (const auto& entry : std::filesystem::recursive_directory_iterator(
 			path / u8"assets/minecraft" /
-				(info.optifine ?
-					u8"optifine" / std::filesystem::path(info.vmt_newlocation ? u8"random/entity" : u8"mob") :
-					u8"mcpatcher/mob")))
+			(info.optifine ?
+				u8"optifine" / std::filesystem::path(info.vmt_newlocation ? u8"random/entity" : u8"mob") :
+				u8"mcpatcher/mob")))
 		{
 			if (entry.path().extension() == ".png")
 			{
-				out(1) << "VMT: Converting " + c8tomb(entry.path().filename().u8string()) << std::endl;
+				pngfiles.push_back(entry);
 			}
-			if (entry.path().filename().extension() == ".png")
+			else if (entry.path().extension() == ".properties")
 			{
-				png(path, info.optifine, info.vmt_newlocation, info.iszip, entry);
+				propfiles.push_back(entry);
 			}
 		}
 
-		for (const auto& entry : std::filesystem::recursive_directory_iterator(
-			path / u8"assets/minecraft" /
-				(info.optifine ?
-					u8"optifine" / std::filesystem::path(info.vmt_newlocation ? u8"random/entity" : u8"mob") :
-					u8"mcpatcher/mob")))
+		// convert all images first, so the reselect file can be overridden
+		for (const auto& entry : pngfiles)
 		{
-			if (entry.path().extension() == ".properties")
-			{
-				out(1) << "VMT: Converting " + c8tomb(entry.path().filename().u8string()) << std::endl;
-				prop(path, info.vmt_newlocation, info.iszip, entry);
-			}
+			output<level_t::detail>("VMT: Converting {}", c8tomb(entry.path().generic_u8string()));
+			png(path, info.optifine, info.vmt_newlocation, info.iszip, entry);
+		}
+		checkpoint();
+
+		for (const auto& entry : propfiles)
+		{
+			output<level_t::detail>("VMT: Converting {}", c8tomb(entry.path().generic_u8string()));
+			s_mobs.clear();
+			prop(path, info.vmt_newlocation, info.iszip, entry);
 
 			// output special mob reselect files
 			for (const auto& p : s_mobs)
@@ -854,5 +861,6 @@ namespace vmt
 				fout.close();
 			}
 		}
+		checkpoint();
 	}
 }

@@ -25,16 +25,16 @@ Some websites have been stealing this project (you'll know what I mean if you se
 
 ## TLDR
 **Windows**: download `MCPPPP-windows.exe` from releases and double click on it.  
-**Mac**: download `MCPPPP-mac.tar.gz` from releases and double click on it. A file named `MCPPPP-mac` should appear in the same location. Double click on it.  
+**Mac**: download `MCPPPP-mac.dmg` from releases and extract it (I think you just double click). `MCPPPP-mac.app` should be extracted, click on it to run.  
 **Linux**: download `MCPPPP-linux-cli` (no gui) or `MCPPPP-linux` (has gui). Make it executable and run it.  
 
-## Use
+## Install/Use
 Newly compiled binaries for linux, windows, and mac can be found as build artifacts. Note that they may not be stable and may not work properly. I will add releases when I feel it is stable enough.  
 To access build artifacts, head to the [compile](https://github.com/supsm/MCPPPP/actions/workflows/compile.yml) page, click on the top result, then scroll down to artifacts. Download the artifact corresponding to your system, then unzip it.  
 `MCPPPP-windows.exe`, `MCPPPP-mac.tar.gz`, and `MCPPPP-linux` will contain a gui.
 `MCPPPP-windows-cli`, `MCPPPP-mac-cli.tar.gz`, and `MCPPPP-linux-cli` do not contain a gui. There is additional information below (Section **CLI**)  
   
-If a folder already contains the output directories (such as `assets/fabricskyboxes`), it will be skipped. If you want to re-convert this pack, delete the directory. MCPPPP will try to be as least invasive as possible, and will only modify these folders.  
+If a folder already contains the output directories (such as `assets/fabricskyboxes`), it will be skipped. If you want to re-convert this pack, delete the directory. MCPPPP will try to be as least invasive as possible, and will only modify these folders (as well as `pack.mcmeta`, which there will be a backup of).  
 More detailed instructions below  
 <details>
   <summary>Output Directories</summary>
@@ -43,6 +43,12 @@ More detailed instructions below
   Varied Mob Textures: `assets/minecraft/varied/textures/entity`  
   Chime: `assets/mcpppp`, `assets/minecraft/overrides`
 </details>
+
+##### Unofficial Distributions
+Unofficial releases for rpm-based linux distributions and aur (arch linux) are provided by sharpenedblade.  
+**WARNING**: these are unofficial and I cannot guarantee anything. **Use at your own risk**  
+To install rpm, run `dnf copr enable sharpenedblade/mcpppp` and browse for the appropriate application.  
+Aur package can be found [here](https://aur.archlinux.org/packages/mcpppp)  
 
 
 #### CLI

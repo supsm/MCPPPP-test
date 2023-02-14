@@ -1,25 +1,41 @@
+MCPPPP-windows.exe
 mcpppp.properties
 mcpppp-config.json
 mcpppp-hashes.json
+
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
+
 *.css
 *.bat
 *.tmp*
+
 \!filesize.exe
 \!bumpversion.exe
+fluid.exe
+ninja.exe
+
 files.txt
 mcpppp-log.txt
 desktop.ini
 
+src/mcpppp.fl
+
 mcpppp-temp/
 x64-Debug/
 x64/
+build/
+Emscripten/
+
+lib/Debug/
+lib/Release/
 
 .sarif/
 .nuget/
+.vscode/
 
 cppcheck-suppressions.txt
 mcpppp.cppcheck
 mcpppp-cppcheck-build-dir/
+.stignore

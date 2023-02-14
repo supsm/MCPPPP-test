@@ -4,8 +4,8 @@
 
 #pragma once
 
-constexpr auto VERSION = "0.7.0"; // MCPPPP version
-constexpr int PACK_VER = 8; // pack.mcmeta pack format
+constexpr auto VERSION = "0.7.5"; // MCPPPP version
+constexpr int PACK_VER = 9; // pack.mcmeta pack format
 
 #include <algorithm>
 #include <array>
@@ -14,6 +14,21 @@ constexpr int PACK_VER = 8; // pack.mcmeta pack format
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "json.hpp"
+
+namespace mcpppp
+{
+	// maximum number of elements in pseudo-stacktrace (pseudotrace)
+	constexpr int maxtracesize = 100;
+
+	// format string for location info
+	// 0 is file name
+	// 1 is function name
+	// 2 is line number
+	// 3 is column number
+	constexpr std::string_view location_format = "{1}({0}:{2}:{3})";
+}
 
 namespace vmt
 {
@@ -303,7 +318,7 @@ namespace vmt
 			}
 			std::string item, type;
 			std::vector<std::string> items;
-			std::stringstream ss(source);
+			std::istringstream ss(source);
 			while (std::getline(ss, item, '_'))
 			{
 				if (!item.empty())

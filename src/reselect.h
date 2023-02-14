@@ -5,11 +5,18 @@
 #pragma once
 
 #include <algorithm>
-#include <cassert>
 #include <list>
 #include <sstream>
 #include <string>
 #include <vector>
+
+// use MCPPPP_ASSERT if available, regular assert otherwise
+#ifdef MCPPPP_ASSERT
+#define reselect_assert MCPPPP_ASSERT
+#else
+#include <cassert>
+#define reselect_assert assert
+#endif
 
 class reselect
 {
@@ -65,7 +72,7 @@ public:
 	// @return string which is to be outputted to a file
 	std::string get_string() const
 	{
-		std::stringstream ss;
+		std::ostringstream ss;
 		// pair of iterators, first is indentation, second is lines
 		for (auto p_it = std::make_pair(indentation.begin(), lines.begin());
 			p_it.first != indentation.end() && p_it.second != lines.end();
@@ -93,9 +100,9 @@ public:
 	// @param last  position of last element to indent (exclusive)
 	void indent(int first = -1, int last = -1)
 	{
-		assert(first >= 0);
-		assert(first < last);
-		assert(last < lines.size());
+		reselect_assert(first >= 0);
+		reselect_assert(first < last);
+		reselect_assert(last < lines.size());
 
 		if (first == -1 || last == -1)
 		{
@@ -189,7 +196,7 @@ public:
 	// @param default_statement  statement to execute if all conditions are false (else), empty for no else statement
 	void add_if(const std::vector<reselect>& conditions, const std::vector<reselect>& statements, const reselect& default_statement = reselect("default", false))
 	{
-		assert(conditions.size() == statements.size());
+		reselect_assert(conditions.size() == statements.size());
 		if (conditions.empty())
 		{
 			return;
@@ -298,10 +305,18 @@ public:
 		else
 		{
 			// weighted random selection
-			assert(statements.size() + 1 == weights.size()); // we already removed the last element from statements
-			for (const auto& i : weights)
+
+			// remove statements until statements.size() <= weights.size() - 1
+			while (statements.size() >= weights.size())
 			{
-				weightsum += i;
+				default_statement = statements.back();
+				statements.pop_back();
+			}
+
+			// apparently you can just have extra weights, so use size of statements
+			for (int i = 0; i < statements.size() + 1; i++)
+			{
+				weightsum += weights[i];
 			}
 
 			// functions for convenience and readability
@@ -313,7 +328,7 @@ public:
 			// actual random thingy
 			std::vector<std::string> conditions;
 			int cursum = 0; // current sum of weights
-			for (int i = 0; i < weights.size() - 1; i++)
+			for (int i = 0; i < statements.size(); i++)
 			{
 				conditions.push_back("rand_in(" + std::to_string(cursum + 1) + ", " + std::to_string(cursum + weights[i]) + ")");
 				cursum += weights[i];

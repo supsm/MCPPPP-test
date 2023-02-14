@@ -4,35 +4,25 @@
 
  //#define GUI
 
-// VERSION and PACK_VER can be found in utility.h
+ // VERSION and PACK_VER can be found in utility.h
 
-#ifdef _WIN32
-#define NOMINMAX
-#endif
-
-#include <iostream>
-#include <filesystem>
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <vector>
+#include "pch.h"
 
 #include "constants.h"
 #include "utility.h"
 
 #ifdef GUI
-#ifdef _WIN32
-#include <Windows.h> // SetProcessDpiAwarenessContext
-#endif
 #include <FL/fl_ask.H>
 #include "gui.h"
 #else
 #include "convert.h"
 #endif
 
-using mcpppp::out;
+using mcpppp::output;
+using mcpppp::level_t;
 using mcpppp::c8tomb;
 using mcpppp::mbtoc8;
+using mcpppp::checkpoint;
 
 int main(int argc, const char* argv[])
 try
@@ -43,6 +33,17 @@ try
 #if defined _WIN32 && defined GUI && defined DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED
 	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED); // fix blurriness
 #endif
+
+
+#ifdef __EMSCRIPTEN__ // skip all commandline and config file stuff for web interface
+	// change default settings
+	mcpppp::outputlevel = level_t::info;
+	// we will treat console output (stdout) as log
+	mcpppp::dolog = true;
+	mcpppp::logfile.close();
+	mcpppp::logfilename.clear();
+	mcpppp::pauseonexit = false;
+#else
 	std::error_code ec;
 	mcpppp::gethashes();
 	if (argc < 2) // skip file settings if there are command line settings
@@ -55,12 +56,15 @@ try
 		ShowWindow(GetConsoleWindow(), SW_HIDE);
 #endif
 		mcpppp::ui = std::make_unique<UI>();
+		mcpppp::init_settings();
 		Fl::get_system_colors();
 		Fl::lock();
 		fl_message_icon()->labeltype(FL_NO_LABEL);
 		fl_message_icon()->box(FL_NO_BOX);
 		mcpppp::ui->show();
 		Fl::wait();
+
+		checkpoint(); // finish gui init
 #endif
 		std::ifstream configfile("mcpppp-config.json");
 		if (configfile.fail())
@@ -80,23 +84,23 @@ try
 		{
 			try
 			{
-				const std::uintmax_t filesize = std::filesystem::file_size("mcpppp-config.json");
-				std::vector<char> contents(filesize);
-				configfile.read(contents.data(), static_cast<std::streamsize>(filesize));
+				std::vector<char> contents{ std::istreambuf_iterator<char>(configfile), std::istreambuf_iterator<char>() };
 				mcpppp::config = nlohmann::ordered_json::parse(contents, nullptr, true, true);
 			}
 			catch (const nlohmann::json::exception& e)
 			{
-				out(5) << e.what() << std::endl;
+				output<level_t::error>("Error while parsing config: {}", e.what());
 				mcpppp::exit();
 			}
 			mcpppp::readconfig();
 		}
 		configfile.close();
+		checkpoint(); // finish config stuff
 	}
 	else
 	{
 		mcpppp::parseargs(argc, argv);
+		checkpoint(); // finish parsing arguments
 	}
 
 #ifdef GUI
@@ -106,18 +110,24 @@ try
 		mcpppp::updatepaths();
 		mcpppp::dotimestamp = true;
 		mcpppp::updatesettings();
+		checkpoint(); // finish gui config init
 	}
 #endif
-
-	out(6) << "MCPPPP " << VERSION
-#ifdef GUI
-		<< " (GUI)"
-#else
-		<< " (CLI)"
 #endif
-		<< std::endl;
-	out(6) << "Os: " <<
-#ifdef _WIN64
+
+	output<level_t::system_info>("MCPPPP {} {}", VERSION,
+#ifdef GUI
+		"(GUI)"
+#elif defined(__EMSCRIPTEN__)
+		"(WEB)"
+#else
+		"(CLI)"
+#endif
+		);
+	output<level_t::system_info>("Os: {}\n",
+#ifdef __EMSCRIPTEN__
+		"Emscripten"
+#elif defined(_WIN64)
 		"Win64"
 #elif defined(_WIN32)
 		"Win32"
@@ -132,21 +142,41 @@ try
 #else
 		"Other"
 #endif
-		<< std::endl << std::endl;
-	out(6) << "autoDeleteTemp  " << (mcpppp::autodeletetemp ? "true" : "false") << std::endl;
-	out(6) << "pauseOnExit     " << (mcpppp::pauseonexit ? "true" : "false") << std::endl;
-	out(6) << "log             " << mcpppp::logfilename << std::endl;
-	out(6) << "timestamp       " << (mcpppp::dotimestamp ? "true" : "false") << std::endl;
-	out(6) << "outputLevel     " << mcpppp::outputlevel << std::endl;
-	out(6) << "logLevel        " << mcpppp::loglevel << std::endl;
-	out(6) << "autoReconvert   " << (mcpppp::autoreconvert ? "true" : "false") << std::endl;
-	out(6) << "fsbTransparent  " << (mcpppp::fsbtransparent ? "true" : "false") << std::endl << std::endl << std::endl;
+		);
+	// output settings and their values
+	{
+		// find longest name
+		size_t longest_name_length = 0;
+		for (const auto& s : mcpppp::settings)
+		{
+			longest_name_length = std::max(longest_name_length, s.second.formatted_name.size());
+		}
+		for (const auto& s : mcpppp::settings)
+		{
+			std::string setting_value;
+			switch (s.second.type)
+			{
+			case mcpppp::type_t::boolean:
+				setting_value = mcpppp::boolalpha(s.second.get<bool>());
+				break;
+			case mcpppp::type_t::integer:
+				setting_value = std::to_string(static_cast<int>(s.second.get<level_t>()));
+				break;
+			case mcpppp::type_t::string:
+				setting_value = s.second.get<std::string>();
+				break;
+			}
+			output<level_t::system_info>("{}{}{}", s.second.formatted_name, std::string(longest_name_length - s.second.formatted_name.size() + 2, ' '), setting_value);
+		}
+		output<level_t::system_info>("\n");
+	}
+	checkpoint(); // finish outputting settings
 
 	if (std::filesystem::is_directory("mcpppp-temp"))
 	{
 		if (mcpppp::autodeletetemp)
 		{
-			out(4) << "Folder named \"mcpppp-temp\" found. Removing..." << std::endl;
+			output<level_t::warning>("Folder named \"mcpppp-temp\" found. Removing...");
 			std::filesystem::remove_all("mcpppp-temp");
 		}
 		else
@@ -157,7 +187,7 @@ try
 				Do you want to delete it?", "Don't Delete", "Delete", nullptr))
 			{
 			case 0: // don't delete
-				out(5) << "Folder named \"mcpppp-temp\" found. Please remove this folder." << std::endl;
+				output<level_t::error>("Folder named \"mcpppp-temp\" found. Please remove this folder.");
 				break;
 			case 1: // delete
 				std::filesystem::remove_all("mcpppp-temp");
@@ -166,33 +196,42 @@ try
 				break;
 			}
 #else
-			out(5) << "Folder named \"mcpppp-temp\" found. Please remove this folder." << std::endl;
+			output<level_t::error>("Folder named \"mcpppp-temp\" found. Please remove this folder.");
 			mcpppp::exit();
 #endif
 		}
+
+		checkpoint(); // finish folder check
 	}
+#ifdef __EMSCRIPTEN__
+	emscripten::val::global("window").call<void>("hide_loading");
+	emscripten::val::global("window").call<void>("alert", std::string("Please upload a zipped resource pack, then press Start Conversion"));
+#else
 #ifndef GUI
-	out(3) << "Conversion Started" << std::endl;
+	output<level_t::important>("Conversion Started");
 #endif
 	for (const std::filesystem::path& path : mcpppp::paths)
 	{
 		if (!std::filesystem::is_directory(path, ec))
 		{
-			out(5) << "Invalid path: \'" << c8tomb(path.generic_u8string()) << "\'" << std::endl << ec.message() << std::endl;
+			output<level_t::error>("Invalid path: \'{}\'\n{}", c8tomb(path.generic_u8string()), ec.message());
 			continue;
 		}
-		out(2) << "Path: " << c8tomb(path.generic_u8string()) << std::endl;
+		output<level_t::info>("Path: {}", c8tomb(path.generic_u8string()));
 		for (const auto& entry : std::filesystem::directory_iterator(path))
 		{
 			if (entry.is_directory() || entry.path().extension() == ".zip")
 			{
-				mcpppp::entries.emplace_back(true, entry);
 #ifdef GUI
-				mcpppp::addpack(entry.path(), true);
+				mcpppp::addpack(entry, true);
+#else
+				mcpppp::entries.emplace_back(entry);
 #endif
+				checkpoint(); // finish resource pack addition
 			}
 		}
 	}
+#endif
 #ifdef GUI
 	if (argc < 2)
 	{
@@ -203,39 +242,18 @@ try
 	{
 		for (const auto& entry : mcpppp::entries)
 		{
-			mcpppp::convert(entry.second);
+			mcpppp::convert(entry.path_entry);
+			checkpoint(); // finish conversion
 		}
 	}
-#else
+#elif !defined(__EMSCRIPTEN__)
 	for (const auto& entry : mcpppp::entries)
 	{
-		mcpppp::convert(entry.second);
+		mcpppp::convert(entry.path_entry);
+		checkpoint(); // finish conversion
 	}
-	out(3) << "Conversion Finished" << std::endl;
+	output<level_t::important>("Conversion Finished");
 	mcpppp::exit();
 #endif
 }
-catch (const nlohmann::json::exception& e)
-{
-	out(5) << "FATAL JSON ERROR:" << std::endl << e.what() << std::endl;
-}
-catch (const Zippy::ZipLogicError& e)
-{
-	out(5) << "FATAL ZIP LOGIC ERROR" << std::endl << e.what() << std::endl;
-}
-catch (const Zippy::ZipRuntimeError& e)
-{
-	out(5) << "FATAL ZIP RUNTIME ERROR" << std::endl << e.what() << std::endl;
-}
-catch (const std::filesystem::filesystem_error& e)
-{
-	out(5) << "FATAL FILESYSTEM ERROR:" << std::endl << e.what() << std::endl;
-}
-catch (const std::exception& e)
-{
-	out(5) << "FATAL ERROR:" << std::endl << e.what() << std::endl;
-}
-catch (...)
-{
-	out(5) << "UNKNOWN FATAL ERROR" << std::endl;
-}
+MCPPPP_CATCH_ALL()
